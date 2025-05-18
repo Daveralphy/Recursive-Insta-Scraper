@@ -14,11 +14,12 @@ def main():
     config = load_config("config.yaml")
     setup_logging()
 
+    # Load Instagram credentials from .env file
     load_dotenv("logincredentials.txt")
     insta_username = os.getenv("INSTAGRAM_USERNAME")
     insta_password = os.getenv("INSTAGRAM_PASSWORD")
 
-    # Access nested config sections with defaults
+    # Access nested config sections
     scrape_cfg = config.get("scrape", {})
     export_cfg = config.get("export", {})
 
@@ -28,23 +29,26 @@ def main():
     delay_max = scrape_cfg.get("delay_max", 3)
     recursion = scrape_cfg.get("recursion", False)
     export_path = export_cfg.get("output_path", "output/results.csv")
+    export_format = export_cfg.get("format", "csv").lower()
+
+    # Validate export format
+    if export_format not in ("csv", "excel"):
+        raise ValueError("Unsupported export format. Choose 'excel' or 'csv'.")
 
     # Step 1 & 2: Scrape followers and following from seed users
     all_usernames = scrape_followers_and_following(seed_usernames, limit)
-
-    # Remove duplicates
     unique_usernames = list(set(all_usernames))
 
-    filtered_usernames = []
     # Step 3: Light bio scrape + filter
+    filtered_usernames = []
     for username in unique_usernames:
         bio_data = light_bio_scrape_and_filter(username)
-        if bio_data:  # Passed filter
+        if bio_data:
             filtered_usernames.append(username)
         time.sleep(random.uniform(delay_min, delay_max))
 
-    detailed_profiles = []
     # Step 4: Full profile scrape + WhatsApp detection
+    detailed_profiles = []
     for username in filtered_usernames:
         profile = full_profile_scrape(username)
         if profile:
@@ -56,19 +60,10 @@ def main():
     for profile in detailed_profiles:
         profile["type"] = classify_profile(profile)
 
-    # Step 6: Export results with format check
-    if export_path.endswith(".csv"):
-        export_format = "csv"
-    elif export_path.endswith(".xlsx"):
-        export_format = "excel"
-    else:
-        raise ValueError("Unsupported export format. Use '.csv' or '.xlsx' for output_path")
-
-    # Pass export_format if your export_results accepts it
-    # If not, just call export_results with two args and make sure export_path ends properly
+    # Step 6: Export results
     export_results(detailed_profiles, export_path, export_format)
 
-    # Step 7: Optional recursion (not implemented here)
+    # Step 7: Optional recursion
     if recursion:
         print("Recursion enabled, but recursive logic is not implemented yet.")
 

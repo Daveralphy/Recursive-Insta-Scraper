@@ -1,12 +1,9 @@
-import csv
 import os
-
-# For Google Sheets
-import gspread
-from google.oauth2.service_account import Credentials
-
-# For Airtable
+import csv
 import requests
+import gspread
+import pandas as pd
+from google.oauth2.service_account import Credentials
 
 def export_to_csv(data, filename="output.csv"):
     if not data:
@@ -14,20 +11,11 @@ def export_to_csv(data, filename="output.csv"):
         return
 
     headers = [
-        "Username",
-        "Full Name",
-        "Bio",
-        "WhatsApp Number",
-        "WhatsApp Group Link",
-        "Type",
-        "Region",
-        "Follower Count",
-        "Profile URL",
-        "External Link"
+        "Username", "Full Name", "Bio", "WhatsApp Number", "WhatsApp Group Link",
+        "Type", "Region", "Follower Count", "Profile URL", "External Link"
     ]
 
-    if os.path.dirname(filename):
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
 
     with open(filename, mode='w', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=headers)
@@ -50,19 +38,10 @@ def export_to_google_sheets(data, spreadsheet_name, credentials_json_path):
         sheet = client.open(spreadsheet_name).sheet1
     except gspread.SpreadsheetNotFound:
         sheet = client.create(spreadsheet_name).sheet1
-        # Share the sheet with your email or make it accessible as needed here
 
     headers = [
-        "Username",
-        "Full Name",
-        "Bio",
-        "WhatsApp Number",
-        "WhatsApp Group Link",
-        "Type",
-        "Region",
-        "Follower Count",
-        "Profile URL",
-        "External Link"
+        "Username", "Full Name", "Bio", "WhatsApp Number", "WhatsApp Group Link",
+        "Type", "Region", "Follower Count", "Profile URL", "External Link"
     ]
 
     sheet.clear()
@@ -98,29 +77,39 @@ def export_to_airtable(data, base_id, table_name, api_key):
             "Profile URL": profile.get("Profile URL", ""),
             "External Link": profile.get("External Link", "")
         }
-        data_json = {"fields": fields}
-        response = requests.post(url, json=data_json, headers=headers)
+        response = requests.post(url, json={"fields": fields}, headers=headers)
         if response.status_code != 201:
             print(f"Failed to add record for {fields['Username']}: {response.text}")
 
     print(f"Exported {len(data)} profiles to Airtable table: {table_name}")
 
-import pandas as pd
-
-def export_results(profiles, export_format="excel", filename="results"):
+def export_results(profiles, export_path="output/results.csv", export_format="csv"):
     """
     Export the scraped and classified profiles to Excel or CSV.
 
     Args:
         profiles (list of dict): The profiles to export.
+        export_path (str): Path to output file, e.g. 'output/results.csv'.
         export_format (str): 'excel' or 'csv'.
-        filename (str): Name of the file (without extension).
     """
+    if not profiles:
+        print("No profiles to export.")
+        return
+
+    os.makedirs(os.path.dirname(export_path), exist_ok=True)
     df = pd.DataFrame(profiles)
 
+    export_format = export_format.lower()
+
     if export_format == "excel":
-        df.to_excel(f"{filename}.xlsx", index=False)
+        if not export_path.endswith(".xlsx"):
+            export_path = export_path.rsplit(".", 1)[0] + ".xlsx"
+        df.to_excel(export_path, index=False)
     elif export_format == "csv":
-        df.to_csv(f"{filename}.csv", index=False)
+        if not export_path.endswith(".csv"):
+            export_path = export_path.rsplit(".", 1)[0] + ".csv"
+        df.to_csv(export_path, index=False)
     else:
         raise ValueError("Unsupported export format. Choose 'excel' or 'csv'.")
+
+    print(f"Exported {len(profiles)} profiles to {export_path}")
