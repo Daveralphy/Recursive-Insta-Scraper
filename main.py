@@ -1,4 +1,5 @@
 import time
+import random
 from scraper.followers_scraper import scrape_followers_and_following
 from scraper.bio_scraper import light_bio_scrape_and_filter
 from scraper.profile_scraper import full_profile_scrape
@@ -8,13 +9,19 @@ from scraper.exporter import export_results
 from utils.helpers import load_config, setup_logging
 
 def main():
-    config = load_config("config/config.yaml")
+    config = load_config("config.yaml")
     setup_logging()
 
-    seed_usernames = config.get("seed_usernames", [])
-    limit = config.get("limit", 500)
-    delay = config.get("delay", 2)
-    recursion = config.get("recursion", False)
+    # Access nested config sections with defaults
+    scrape_cfg = config.get("scrape", {})
+    export_cfg = config.get("export", {})
+
+    seed_usernames = scrape_cfg.get("seed_usernames", [])
+    limit = scrape_cfg.get("limit", 500)
+    delay_min = scrape_cfg.get("delay_min", 1)
+    delay_max = scrape_cfg.get("delay_max", 3)
+    recursion = scrape_cfg.get("recursion", False)
+    export_path = export_cfg.get("output_path", "output/results.csv")
 
     # Step 1 & 2: Scrape followers and following from seed users
     all_usernames = scrape_followers_and_following(seed_usernames, limit)
@@ -28,7 +35,7 @@ def main():
         bio_data = light_bio_scrape_and_filter(username)
         if bio_data:  # Passed filter
             filtered_usernames.append(username)
-        time.sleep(delay)
+        time.sleep(random.uniform(delay_min, delay_max))
 
     detailed_profiles = []
     # Step 4: Full profile scrape + WhatsApp detection
@@ -37,19 +44,18 @@ def main():
         if profile:
             profile.update(detect_whatsapp_info(profile))
             detailed_profiles.append(profile)
-        time.sleep(delay)
+        time.sleep(random.uniform(delay_min, delay_max))
 
     # Step 5: Classification
     for profile in detailed_profiles:
         profile["type"] = classify_profile(profile)
 
     # Step 6: Export results
-    export_results(detailed_profiles, config.get("export_path", "output.csv"))
+    export_results(detailed_profiles, export_path)
 
-    # Step 7: Optional recursion (re-feed usernames)
+    # Step 7: Optional recursion (not implemented here)
     if recursion:
-        # You can implement recursive scraping logic here or in a helper
-        print("Recursion enabled, implement recursive scraping logic.")
+        print("Recursion enabled, but recursive logic is not implemented yet.")
 
 if __name__ == "__main__":
     main()

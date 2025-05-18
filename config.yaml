@@ -1,0 +1,13 @@
+scrape:
+  seed_usernames:
+    - gsm.latam
+    - iphone.miami
+    - celulares.arg
+    - repuestos.movil
+  limit: 500
+  delay_min: 1
+  delay_max: 3
+  recursion: true
+
+export:
+  output_path: "output/results.csv"
