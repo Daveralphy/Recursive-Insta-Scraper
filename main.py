@@ -1,5 +1,7 @@
 import time
 import random
+import os
+from dotenv import load_dotenv
 from scraper.followers_scraper import scrape_followers_and_following
 from scraper.bio_scraper import light_bio_scrape_and_filter
 from scraper.profile_scraper import full_profile_scrape
@@ -11,6 +13,10 @@ from utils.helpers import load_config, setup_logging
 def main():
     config = load_config("config.yaml")
     setup_logging()
+
+    load_dotenv("logincredentials.txt")
+    insta_username = os.getenv("INSTAGRAM_USERNAME")
+    insta_password = os.getenv("INSTAGRAM_PASSWORD")
 
     # Access nested config sections with defaults
     scrape_cfg = config.get("scrape", {})
