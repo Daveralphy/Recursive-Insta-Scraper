@@ -50,8 +50,17 @@ def main():
     for profile in detailed_profiles:
         profile["type"] = classify_profile(profile)
 
-    # Step 6: Export results
-    export_results(detailed_profiles, export_path)
+    # Step 6: Export results with format check
+    if export_path.endswith(".csv"):
+        export_format = "csv"
+    elif export_path.endswith(".xlsx"):
+        export_format = "excel"
+    else:
+        raise ValueError("Unsupported export format. Use '.csv' or '.xlsx' for output_path")
+
+    # Pass export_format if your export_results accepts it
+    # If not, just call export_results with two args and make sure export_path ends properly
+    export_results(detailed_profiles, export_path, export_format)
 
     # Step 7: Optional recursion (not implemented here)
     if recursion:
