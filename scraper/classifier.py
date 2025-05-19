@@ -1,88 +1,27 @@
-import os
-import openai
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-def classify_with_gpt(bio):
-    """
-    Use OpenAI GPT to classify Instagram profile bio into business types.
-    Returns one of ['Retailer', 'Reseller', 'Distributor', 'Repair Shop', 'Unknown'].
-    """
-    prompt = f"""
-You are a helpful assistant that classifies cellphone business types based on Instagram bio text.
-
-Bio:
-\"\"\"{bio}\"\"\"
-
-Classify this bio into one of these categories:
-- Retailer
-- Reseller
-- Distributor
-- Repair Shop
-- Unknown (if none apply)
-
-Only respond with one word from the list above.
-"""
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0
-        )
-        classification = response.choices[0].message.content.strip()
-        if classification in ["Retailer", "Reseller", "Distributor", "Repair Shop", "Unknown"]:
-            return classification
-        else:
-            return "Unknown"
-    except Exception as e:
-        print(f"GPT classification failed: {e}")
-        return "Unknown"
-
-
-def classify_profile(bio, use_gpt=False):
-    """
-    Classify Instagram profile type based on bio keywords, optionally using GPT.
-
-    Args:
-        bio (str): Profile bio text
-        use_gpt (bool): Whether to fallback to GPT classification if keyword classification fails
-
-    Returns:
-        str: One of ['Retailer', 'Reseller', 'Distributor', 'Repair Shop', 'Unknown']
-    """
-
-    bio_lower = bio.lower()
-
-    if any(word in bio_lower for word in ["venta", "mayoreo", "distribuidor", "distribución", "distribuidora"]):
-        return "Distributor"
-    elif any(word in bio_lower for word in ["reparación", "servicio", "desbloqueo", "repair", "unlock", "service"]):
-        return "Repair Shop"
-    elif any(word in bio_lower for word in ["revendedor", "reseller", "reventa", "flipping"]):
-        return "Reseller"
-    elif any(word in bio_lower for word in ["iphone", "samsung", "celulares", "accesorios", "venta directa", "retail"]):
-        return "Retailer"
-    else:
-        if use_gpt:
-            return classify_with_gpt(bio)
-        else:
-            return "Unknown"
+# classifier.py
 
 def classify_profile(profile):
     """
-    Classify the profile based on simple heuristics or keywords.
+    Classifies the profile into a business type based on keywords found in the bio or full name.
 
     Args:
-        profile (dict): The profile data.
+        profile (dict): A dictionary with keys like 'bio' and 'full_name'.
 
     Returns:
-        str: The classification label (e.g., 'business', 'influencer', 'personal').
+        str: One of ['Retailer', 'Reseller', 'Distributor', 'Repair Shop', 'Unknown'].
     """
     bio = profile.get('bio', '').lower()
+    name = profile.get('full_name', '').lower()
 
-    if 'shop' in bio or 'store' in bio:
-        return 'business'
-    elif 'blogger' in bio or 'influencer' in bio:
-        return 'influencer'
+    text = f"{name} {bio}"
+
+    if any(word in text for word in ['reparacion', 'reparação', 'conserto', 'assistência']):
+        return "Repair Shop"
+    elif any(word in text for word in ['distribuidor', 'atacado']):
+        return "Distributor"
+    elif any(word in text for word in ['revendedor', 'reseller']):
+        return "Reseller"
+    elif any(word in text for word in ['loja', 'tienda', 'retail', 'varejo', 'venta']):
+        return "Retailer"
     else:
-        return 'personal'
+        return "Unknown"

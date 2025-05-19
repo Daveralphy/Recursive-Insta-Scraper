@@ -1,52 +1,37 @@
+# whatsapp_detector.py
+
 import re
 
-# Regex patterns to detect WhatsApp numbers and group links
-WHATSAPP_NUMBER_PATTERNS = [
-    r'\+?\d{1,4}[\s\-]?\(?\d{1,4}\)?[\s\-]?\d{3,}',  # General international number format with optional country code
-    r'wa\.me\/\d+',                                 # wa.me short links
-    r'Wsp[:\s]?\+?\d+',                             # Variants with "Wsp" label
-]
+# Regex for WhatsApp number (international format)
+WHATSAPP_NUMBER_REGEX = re.compile(r'\+?\d{1,3}[-.\s]?\(?\d+\)?[-.\s]?\d+[-.\s]?\d+')
 
-WHATSAPP_GROUP_LINK_PATTERN = r'(https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+'
+# Regex for WhatsApp group links
+WHATSAPP_GROUP_REGEX = re.compile(r'https?://chat\.whatsapp\.com/[A-Za-z0-9]+')
 
-def extract_whatsapp_numbers(text):
-    numbers = set()
-    for pattern in WHATSAPP_NUMBER_PATTERNS:
-        matches = re.findall(pattern, text, flags=re.IGNORECASE)
-        for match in matches:
-            numbers.add(match.strip())
-    return list(numbers)
-
-def extract_whatsapp_group_links(text):
-    matches = re.findall(WHATSAPP_GROUP_LINK_PATTERN, text, flags=re.IGNORECASE)
-    return list(set(matches))
-
-def detect_whatsapp_info(bio_text):
+def detect_whatsapp_info(profile_data):
     """
-    Returns a dictionary with detected WhatsApp numbers and group links from bio text.
-    """
-    return {
-        "whatsapp_numbers": extract_whatsapp_numbers(bio_text),
-        "whatsapp_group_links": extract_whatsapp_group_links(bio_text)
-    }
-
-def detect_whatsapp_info(profiles):
-    """
-    Detect WhatsApp information in user bios or other profile data.
+    Detects WhatsApp numbers and group links in a user's profile fields.
 
     Args:
-        profiles (list): List of profile dictionaries.
+        profile_data (dict): Dictionary containing profile fields like bio and external_url.
 
     Returns:
-        list: Filtered list of profiles that likely contain WhatsApp info.
+        dict: Profile data with 'whatsapp_number' and 'whatsapp_group_link' keys added.
     """
-    whatsapp_keywords = ['whatsapp', 'wa.me', '+', 'contact me on', 'reach me on']
-    detected = []
+    bio = profile_data.get('bio', '')
+    external = profile_data.get('external_url', '')
 
-    for profile in profiles:
-        bio = profile.get('bio', '').lower()
-        if any(keyword in bio for keyword in whatsapp_keywords):
-            detected.append(profile)
+    combined_text = f"{bio} {external}"
 
-    return detected
+    # Find WhatsApp number
+    number_match = WHATSAPP_NUMBER_REGEX.search(combined_text)
+    whatsapp_number = number_match.group(0) if number_match else ""
 
+    # Find WhatsApp group link
+    group_match = WHATSAPP_GROUP_REGEX.search(combined_text)
+    whatsapp_group = group_match.group(0) if group_match else ""
+
+    profile_data['whatsapp_number'] = whatsapp_number
+    profile_data['whatsapp_group_link'] = whatsapp_group
+
+    return profile_data

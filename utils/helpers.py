@@ -1,90 +1,52 @@
-import time
-import logging
-import random
-import random
 import yaml
+import time
+import random
+import logging
 
-def setup_logger(name, level=logging.INFO):
-    """Create and return a logger with a specified name and level."""
+def load_config(filepath="config.yaml"):
+    """
+    Load configuration from a YAML file.
+    """
+    with open(filepath, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+def random_delay(min_seconds=1, max_seconds=3):
+    """
+    Sleep for a random amount of time between min_seconds and max_seconds.
+    """
+    delay = random.uniform(min_seconds, max_seconds)
+    time.sleep(delay)
+
+def safe_get(dct, *keys, default=None):
+    """
+    Safely get nested dictionary keys.
+    Example: safe_get(data, 'key1', 'key2', default='N/A')
+    """
+    for key in keys:
+        if not isinstance(dct, dict) or key not in dct:
+            return default
+        dct = dct[key]
+    return dct
+
+def setup_logger(name="latam_scraper", level=logging.INFO):
+    """
+    Sets up and returns a logger instance.
+    """
     logger = logging.getLogger(name)
     if not logger.hasHandlers():
+        logger.setLevel(level)
         handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-    logger.setLevel(level)
     return logger
 
-def rate_limit_delay(min_delay=1, max_delay=3):
+def select_proxy(proxies):
     """
-    Sleep for a random amount of time between min_delay and max_delay seconds
-    to mimic human-like behavior and avoid being rate limited.
+    Select a proxy from the proxy list randomly.
+    Return None if list is empty.
     """
-    delay = random.uniform(min_delay, max_delay)
-    time.sleep(delay)
-
-def deduplicate_list(items):
-    """
-    Return a list with duplicates removed while preserving original order.
-    """
-    seen = set()
-    result = []
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            result.append(item)
-    return result
-
-def normalize_username(username):
-    """
-    Clean and normalize Instagram usernames (strip @, lowercase, etc.)
-    """
-    if username.startswith('@'):
-        username = username[1:]
-    return username.lower().strip()
-
-
-def rotate_proxy(proxies):
-    """
-    Randomly rotate proxies from a given list.
-
-    Args:
-        proxies (list): List of proxy strings.
-
-    Returns:
-        str: A selected proxy string.
-    """
-    if not proxies:
-        return None
-    return random.choice(proxies)
-
-def rate_limit_delay(min_delay=2, max_delay=5):
-    """
-    Sleep for a random time interval to simulate human behavior and avoid rate limits.
-
-    Args:
-        min_delay (int): Minimum seconds to wait.
-        max_delay (int): Maximum seconds to wait.
-    """
-    delay = random.uniform(min_delay, max_delay)
-    time.sleep(delay)
-
-def load_config(path="config.yaml"):
-    try:
-        with open(path, "r", encoding="utf-8") as file:
-            config = yaml.safe_load(file)
-            if not config:
-                raise ValueError("Config file is empty or not parsed correctly.")
-            return config
-    except Exception as e:
-        logging.error(f"Unexpected error loading config: {e}")
-        return None
-
-def setup_logging():
-    """
-    Set up logging configuration.
-    """
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    if proxies:
+        return random.choice(proxies)
+    return None

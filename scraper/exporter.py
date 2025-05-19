@@ -1,115 +1,75 @@
-import os
 import csv
-import requests
-import gspread
-import pandas as pd
-from google.oauth2.service_account import Credentials
+import os
 
-def export_to_csv(data, filename="output.csv"):
-    if not data:
-        print("No data to export.")
-        return
+# Column order and headers as required
+HEADERS = [
+    "Username",
+    "Full Name",
+    "Bio",
+    "WhatsApp Number",
+    "WhatsApp Group Link",
+    "Type",
+    "Region",
+    "Follower Count",
+    "Profile URL",
+    "External Link"
+]
 
-    headers = [
-        "Username", "Full Name", "Bio", "WhatsApp Number", "WhatsApp Group Link",
-        "Type", "Region", "Follower Count", "Profile URL", "External Link"
-    ]
-
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-
-    with open(filename, mode='w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
-        writer.writeheader()
-        for profile in data:
-            writer.writerow({key: profile.get(key, "") for key in headers})
-
-    print(f"Exported {len(data)} profiles to {filename}")
-
-def export_to_google_sheets(data, spreadsheet_name, credentials_json_path):
-    if not data:
-        print("No data to export.")
-        return
-
-    scope = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
-    creds = Credentials.from_service_account_file(credentials_json_path, scopes=scope)
-    client = gspread.authorize(creds)
-
-    try:
-        sheet = client.open(spreadsheet_name).sheet1
-    except gspread.SpreadsheetNotFound:
-        sheet = client.create(spreadsheet_name).sheet1
-
-    headers = [
-        "Username", "Full Name", "Bio", "WhatsApp Number", "WhatsApp Group Link",
-        "Type", "Region", "Follower Count", "Profile URL", "External Link"
-    ]
-
-    sheet.clear()
-    sheet.append_row(headers)
-
-    for profile in data:
-        row = [profile.get(key, "") for key in headers]
-        sheet.append_row(row)
-
-    print(f"Exported {len(data)} profiles to Google Sheets: {spreadsheet_name}")
-
-def export_to_airtable(data, base_id, table_name, api_key):
-    if not data:
-        print("No data to export.")
-        return
-
-    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-
-    for profile in data:
-        fields = {
-            "Username": profile.get("Username", ""),
-            "Full Name": profile.get("Full Name", ""),
-            "Bio": profile.get("Bio", ""),
-            "WhatsApp Number": profile.get("WhatsApp Number", ""),
-            "WhatsApp Group Link": profile.get("WhatsApp Group Link", ""),
-            "Type": profile.get("Type", ""),
-            "Region": profile.get("Region", ""),
-            "Follower Count": profile.get("Follower Count", ""),
-            "Profile URL": profile.get("Profile URL", ""),
-            "External Link": profile.get("External Link", "")
-        }
-        response = requests.post(url, json={"fields": fields}, headers=headers)
-        if response.status_code != 201:
-            print(f"Failed to add record for {fields['Username']}: {response.text}")
-
-    print(f"Exported {len(data)} profiles to Airtable table: {table_name}")
-
-def export_results(profiles, export_path="output/results.csv", export_format="csv"):
+def export_to_csv(profiles, output_file="exported_profiles.csv"):
     """
-    Export the scraped and classified profiles to Excel or CSV.
+    Exports the list of profile dictionaries to a CSV file.
 
     Args:
-        profiles (list of dict): The profiles to export.
-        export_path (str): Path to output file, e.g. 'output/results.csv'.
-        export_format (str): 'excel' or 'csv'.
+        profiles (list of dict): Profile data to export.
+        output_file (str): Path to the CSV output file.
+
+    Returns:
+        str: Path to the CSV file created.
     """
     if not profiles:
-        print("No profiles to export.")
-        return
+        print("No data found to export.")
+        return None
 
-    os.makedirs(os.path.dirname(export_path), exist_ok=True)
-    df = pd.DataFrame(profiles)
+    with open(output_file, mode='w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=HEADERS, extrasaction='ignore')
+        writer.writeheader()
+        for profile in profiles:
+            # Ensure all keys exist, fallback to empty string if missing
+            row = {key: profile.get(key.lower().replace(" ", "_"), "") for key in HEADERS}
+            writer.writerow(row)
 
-    export_format = export_format.lower()
+    print(f"Exported {len(profiles)} profiles to {output_file}")
+    return os.path.abspath(output_file)
 
-    if export_format == "excel":
-        if not export_path.endswith(".xlsx"):
-            export_path = export_path.rsplit(".", 1)[0] + ".xlsx"
-        df.to_excel(export_path, index=False)
-    elif export_format == "csv":
-        if not export_path.endswith(".csv"):
-            export_path = export_path.rsplit(".", 1)[0] + ".csv"
-        df.to_csv(export_path, index=False)
-    else:
-        raise ValueError("Unsupported export format. Choose 'excel' or 'csv'.")
+def export_to_google_sheets(profiles, spreadsheet_id, credentials_json):
+    """
+    Placeholder for Google Sheets export functionality.
 
-    print(f"Exported {len(profiles)} profiles to {export_path}")
+    Args:
+        profiles (list of dict): Profile data to export.
+        spreadsheet_id (str): ID of the Google Sheets spreadsheet.
+        credentials_json (str): Path to Google API credentials JSON.
+
+    Returns:
+        bool: True if export successful, False otherwise.
+    """
+    # TODO: Implement using Google Sheets API
+    print("Google Sheets export not implemented yet.")
+    return False
+
+def export_to_airtable(profiles, base_id, table_name, api_key):
+    """
+    Placeholder for Airtable export functionality.
+
+    Args:
+        profiles (list of dict): Profile data to export.
+        base_id (str): Airtable base ID.
+        table_name (str): Airtable table name.
+        api_key (str): Airtable API key.
+
+    Returns:
+        bool: True if export successful, False otherwise.
+    """
+    # TODO: Implement using Airtable API
+    print("Airtable export not implemented yet.")
+    return False

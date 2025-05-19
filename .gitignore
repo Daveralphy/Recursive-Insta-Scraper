@@ -175,4 +175,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-logincredentials.txt
+.env
+save_session.py
+session.json

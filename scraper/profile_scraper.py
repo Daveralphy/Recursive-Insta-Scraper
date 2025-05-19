@@ -1,85 +1,43 @@
-import re
-import instaloader
+# profile_scraper.py
 
-WHATSAPP_NUMBER_REGEX = re.compile(
-    r"(\+?\d{1,3}[-.\s]?)?(\(?\d{1,4}\)?[-.\s]?)?(\d{3,4}[-.\s]?){2,5}"
-)
-WHATSAPP_LINK_REGEX = re.compile(r"(https?://)?chat\.whatsapp\.com/[a-zA-Z0-9]+")
+from instagrapi import Client
+import time
+import random
 
-def extract_whatsapp_number(text):
-    matches = WHATSAPP_NUMBER_REGEX.findall(text)
-    if matches:
-        # Return the first full match as a concatenated string
-        for match in matches:
-            combined = "".join(match).strip()
-            if combined:
-                return combined
-    return None
-
-def extract_whatsapp_group_link(text):
-    match = WHATSAPP_LINK_REGEX.search(text)
-    return match.group(0) if match else None
-
-def scrape_full_profile(usernames):
+def scrape_full_profiles(filtered_users, client: Client, delay_min=1, delay_max=3):
     """
-    Scrape full profile info including WhatsApp detection.
+    Scrapes full profile details for users already filtered through bio scraping.
 
     Args:
-        usernames (list): List of usernames filtered from bio_scraper.py
+        filtered_users (list of dict): List of filtered users with 'username', 'full_name', and 'bio'.
+        client (Client): Authenticated Instagrapi client.
+        delay_min (int): Minimum delay between requests.
+        delay_max (int): Maximum delay between requests.
 
     Returns:
-        dict: username -> dict with profile fields + WhatsApp number/group link
+        list of dict: Detailed profile data for export.
     """
-    L = instaloader.Instaloader()
-    profiles = {}
+    full_profiles = []
 
-    for username in usernames:
+    for user in filtered_users:
+        username = user['username']
         try:
-            profile = instaloader.Profile.from_username(L.context, username)
+            user_info = client.user_info_by_username(username)
 
-            bio = profile.biography or ""
-            full_name = profile.full_name or ""
-            external_url = profile.external_url or ""
-            follower_count = profile.followers
-            profile_url = f"https://instagram.com/{username}"
-
-            whatsapp_number = extract_whatsapp_number(bio + " " + external_url)
-            whatsapp_group = extract_whatsapp_group_link(bio + " " + external_url)
-
-            profiles[username] = {
+            profile_data = {
                 "username": username,
-                "full_name": full_name,
-                "bio": bio,
-                "external_url": external_url,
-                "follower_count": follower_count,
-                "profile_url": profile_url,
-                "whatsapp_number": whatsapp_number,
-                "whatsapp_group_link": whatsapp_group,
+                "full_name": user_info.full_name,
+                "bio": user_info.biography,
+                "follower_count": user_info.follower_count,
+                "profile_url": f"https://instagram.com/{username}",
+                "external_url": user_info.external_url or ""
             }
+
+            full_profiles.append(profile_data)
+            print(f"Full profile scraped: {username}")
+            time.sleep(random.uniform(delay_min, delay_max))
+
         except Exception as e:
-            print(f"Error scraping full profile {username}: {e}")
+            print(f"Failed to scrape full profile for {username}: {e}")
 
-    return profiles
-
-def full_profile_scrape(usernames):
-    """
-    Placeholder function to simulate full profile scraping for given Instagram usernames.
-
-    Args:
-        usernames (list): List of usernames.
-
-    Returns:
-        list: Dictionary of profiles with extracted metadata.
-    """
-    profiles = []
-    for username in usernames:
-        profile_data = {
-            "username": username,
-            "followers": 1000,  # Simulated value
-            "following": 150,   # Simulated value
-            "bio": "Sample bio with WhatsApp",
-            "posts": 35         # Simulated value
-        }
-        profiles.append(profile_data)
-    return profiles
-
+    return full_profiles

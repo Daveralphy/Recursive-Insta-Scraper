@@ -1,13 +1,14 @@
-scrape:
-  seed_usernames:
-    - gsm.latam
-    - iphone.miami
-    - celulares.arg
-    - repuestos.movil
-  limit: 500
-  delay_min: 1
-  delay_max: 3
-  recursion: true
+# config.yaml
 
-export:
-  output_path: "output/results.csv"
+seed_usernames:
+  - gsm.latam
+  - iphone.miami
+  - celulares.arg
+  - repuestos.movil
+
+scrape_limit: 100  # How many followers/following to pull per seed
+delay_min: 1       # Minimum delay in seconds
+delay_max: 3       # Maximum delay in seconds
+
+# Export settings
+export_filename: latam_instagram_scrape.csv
