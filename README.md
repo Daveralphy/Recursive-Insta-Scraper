@@ -111,4 +111,4 @@ This project is licensed under the MIT License.
 
 ## Contact
 
-For questions or collaboration, please reach out via the GitHub repo or the WhatsApp group linked in the project documentation.
+For questions or collaboration, please reach out via the GitHub repo or this WhatsApp group linked at https://chat.whatsapp.com/LjycmpBDNL78ZB3cgAcged.
