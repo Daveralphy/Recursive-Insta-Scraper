@@ -178,3 +178,4 @@ cython_debug/
 .env
 save_session.py
 session.json
+config/config.yaml
