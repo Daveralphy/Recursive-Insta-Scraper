@@ -11,4 +11,4 @@ delay_min: 1       # Minimum delay in seconds
 delay_max: 3       # Maximum delay in seconds
 
 # Export settings
-export_filename: latam_instagram_scrape.csv
+export_filename: results.csv

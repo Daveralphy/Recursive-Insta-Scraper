@@ -122,7 +122,7 @@ def main():
     # Export
     if classified_profiles:
         export_to_csv(classified_profiles, filename=config.get("export_filename", "output.csv"))
-        logger.info(f"Export completed: {config.get('export_filename', 'output.csv')}")
+        logger.info(f"Export completed: {config.get('export_filename', 'results.csv')}")
     else:
         logger.info("No data found to export. Exiting.")
 
