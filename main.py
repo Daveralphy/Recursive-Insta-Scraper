@@ -1,149 +1,134 @@
-# main.py
-
-from selenium import webdriver
-from utils.helpers import load_config, setup_logger, deduplicate_usernames
-from scrapers.login import LoginHandler
-from scrapers.followers_scraper import FollowersScraper
-from scrapers.profile_scraper import ProfileScraper
-from filters.keyword_filter import is_phone_related
-from detectors.whatsapp_detector import extract_whatsapp_info
-from classifier.classifier import classify_profile
-from exporter.exporter import export_results
+import os
 import time
+import random
+import yaml
+from dotenv import load_dotenv
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
+from scrapers.profile_scraper import scrape_profiles
+from scrapers.bio_scraper import scrape_bios
+from scrapers.followers_scraper import scrape_followers
 
-def main():
-    config = load_config()
-    logger = setup_logger()
+# Load environment variables (credentials)
+dotenv_path = os.path.join(os.getcwd(), ".env")
+load_dotenv(dotenv_path)
 
-    driver = webdriver.Chrome()  # You can switch driver here if needed
+INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME")
+INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD")
 
-    login_handler = LoginHandler(driver, config)
-    if not login_handler.login():
-        logger.error("Login failed. Exiting.")
-        driver.quit()
-        return
+# Load config settings
+with open("config.yaml", "r") as config_file:
+    config = yaml.safe_load(config_file)
 
-    logger.info("Login successful. Starting scraping...")
+VISIBLE_BROWSER = config["settings"]["visible_browser"]
+SEED_USERNAMES = config["seed_usernames"]
 
-    followers_scraper = FollowersScraper(driver, config)
-    profile_scraper = ProfileScraper(driver, config)
+# Initialize Selenium WebDriver
+try:
+    print("🚀 Initializing Chrome WebDriver...")
+    options = webdriver.ChromeOptions()
+    if not VISIBLE_BROWSER:
+        options.add_argument("--headless")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
 
-    seed_usernames = config.get("seed_usernames", [])
-    if not seed_usernames:
-        logger.error("No seed usernames found in config. Exiting.")
-        driver.quit()
-        return
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
 
-    recursion_enabled = config.get("enable_recursion", True)
-    max_profiles = config.get("max_profiles", 500)
-    delay = config.get("delay_between_requests", 2)
+    print("✅ Chrome WebDriver launched successfully!")
+except Exception as e:
+    print(f"❌ WebDriver initialization failed: {e}")
+    exit()
 
-    to_process = set(seed_usernames)
-    processed = set()
-    results = []
+# Open Instagram login page
+print("🔍 Opening Instagram login page...")
+driver.get("https://www.instagram.com/accounts/login/")
+time.sleep(random.randint(5, 10))
 
-    while to_process and len(processed) < max_profiles:
-        current_username = to_process.pop()
-        if current_username in processed:
-            continue
+# Enter login credentials
+try:
+    print("🔑 Entering login credentials...")
+    driver.find_element(By.NAME, "username").send_keys(INSTAGRAM_USERNAME)
+    driver.find_element(By.NAME, "password").send_keys(INSTAGRAM_PASSWORD)
+    driver.find_element(By.NAME, "password").send_keys(Keys.RETURN)
 
-        # --- NEW: Scrape seed username profile first ---
-        logger.info(f"Scraping seed profile first: {current_username}")
-        profile_data = profile_scraper.search_and_scrape_profile(current_username)
-        if profile_data:
-            if is_phone_related(profile_data):
-                whatsapp_number, whatsapp_group = extract_whatsapp_info(profile_data)
-                account_type = classify_profile(profile_data)
-
-                result = {
-                    "Username": current_username,
-                    "Full Name": profile_data.get("full_name", ""),
-                    "Bio": profile_data.get("bio", ""),
-                    "WhatsApp Number": whatsapp_number,
-                    "WhatsApp Group Link": whatsapp_group,
-                    "Type": account_type,
-                    "Region": profile_data.get("region", ""),
-                    "Follower Count": profile_data.get("follower_count", 0),
-                    "Profile URL": profile_data.get("profile_url", f"https://instagram.com/{current_username}"),
-                    "External Link": profile_data.get("external_link", "")
-                }
-                results.append(result)
-                logger.info(f"Saved seed profile: {current_username}")
-
-                if recursion_enabled:
-                    to_process.add(current_username)
-
-                if len(results) >= max_profiles:
-                    logger.info("Reached profile limit after seed profile scrape. Exiting loop.")
-                    break
-            else:
-                logger.info(f"Seed profile filtered out (not phone related): {current_username}")
-        else:
-            logger.warning(f"Could not scrape seed profile: {current_username}")
-
-        # --- Then scrape followers/following as before ---
-        logger.info(f"Fetching followers/following for: {current_username}")
-        try:
-            followers = followers_scraper.scrape_followers(current_username)
-            following = followers_scraper.scrape_following(current_username)
-        except Exception as e:
-            logger.warning(f"Failed scraping followers/following of {current_username}: {str(e)}")
-            processed.add(current_username)
-            continue
-
-        scraped_usernames = followers + following
-        logger.info(f"Found {len(scraped_usernames)} accounts from {current_username}")
-
-        for username in scraped_usernames:
-            if username in processed:
-                continue
-
-            logger.info(f"Processing profile: {username}")
-            profile_data = profile_scraper.search_and_scrape_profile(username)
-            if not profile_data:
-                logger.warning(f"Could not scrape profile for {username}. Skipping.")
-                continue
-
-            if not is_phone_related(profile_data):
-                logger.info(f"Filtered out: {username} — Not phone related.")
-                continue
-
-            whatsapp_number, whatsapp_group = extract_whatsapp_info(profile_data)
-            account_type = classify_profile(profile_data)
-
-            result = {
-                "Username": username,
-                "Full Name": profile_data.get("full_name", ""),
-                "Bio": profile_data.get("bio", ""),
-                "WhatsApp Number": whatsapp_number,
-                "WhatsApp Group Link": whatsapp_group,
-                "Type": account_type,
-                "Region": profile_data.get("region", ""),
-                "Follower Count": profile_data.get("follower_count", 0),
-                "Profile URL": profile_data.get("profile_url", f"https://instagram.com/{username}"),
-                "External Link": profile_data.get("external_link", "")
-            }
-
-            results.append(result)
-            logger.info(f"Saved: {username}")
-
-            if recursion_enabled:
-                to_process.add(username)
-
-            if len(results) >= max_profiles:
-                logger.info("Reached profile limit. Exiting loop.")
-                break
-
-            if delay:
-                time.sleep(delay)
-
-        processed.add(current_username)
-
-    export_filename = config.get("export_filename", "results.csv")
-    export_results(results, export_filename)
-    logger.info(f"Export complete. {len(results)} profiles saved to {export_filename}")
-
+    time.sleep(random.randint(5, 10))  # Wait for login to process
+    print("✅ Login details entered successfully!")
+except Exception as e:
+    print(f"❌ Failed to enter login credentials: {e}")
     driver.quit()
+    exit()
 
-if __name__ == "__main__":
-    main()
+# Detect and handle Two-Factor Authentication (2FA)
+try:
+    print("🔍 Checking for 2FA prompt...")
+    time.sleep(5)  # Wait for potential 2FA prompt
+    security_code_input = driver.find_elements(By.NAME, "verificationCode")
+
+    if security_code_input:
+        print("⚠️ Instagram requires Two-Factor Authentication (2FA).")
+        security_code = input("🔐 Enter the 2FA code sent to your device: ")
+
+        if security_code:
+            security_code_input[0].send_keys(security_code)
+            security_code_input[0].send_keys(Keys.RETURN)
+            print("✅ Two-factor authentication submitted! Waiting for confirmation...")
+        else:
+            print("❌ No code entered, exiting.")
+            driver.quit()
+            exit()
+
+    # Dynamically wait for Instagram to confirm 2FA by detecting URL change
+    print("🔍 Waiting for Instagram to confirm login after 2FA...")
+    wait_start_time = time.time()
+
+    while True:
+        time.sleep(2)  # Small wait before checking again
+        current_url = driver.current_url
+
+        if current_url == "https://www.instagram.com/":
+            print("✅ 2FA authentication successful! Proceeding to scraping...")
+            break
+
+        # Timeout safeguard (prevents infinite waiting)
+        if time.time() - wait_start_time > 120:  # Allow up to 2 minutes for authentication
+            print("❌ 2FA authentication took too long! Exiting...")
+            driver.quit()
+            exit()
+
+except Exception as e:
+    print(f"⚠️ Could not detect 2FA input field: {e}")
+
+# Confirm login success before scraping
+try:
+    time.sleep(5)  # Allow Instagram to process login
+    current_url = driver.current_url
+    print(f"🔗 Current URL after login: {current_url}")
+
+    if "accounts/login" in current_url:
+        print("❌ Login failed! Verify credentials or complete security checks.")
+        driver.quit()
+        exit()
+    print("✅ Login successful!")
+except Exception as e:
+    print(f"❌ Unexpected login failure: {e}")
+    driver.quit()
+    exit()
+
+# Start scraping process using the same WebDriver session
+print("🚀 Starting follower scraping...")
+followers = scrape_followers(driver)
+
+print("🚀 Scraping profiles...")
+scrape_profiles(driver, followers)  # Pass WebDriver session
+
+print("🚀 Scraping bios...")
+scrape_bios(driver)  # Pass WebDriver session
+
+# Close browser session after all scraping is done
+driver.quit()
+print("✅ Scraping process completed successfully!")

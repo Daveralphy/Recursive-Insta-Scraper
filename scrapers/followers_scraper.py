@@ -1,78 +1,84 @@
 import time
+import random
+import yaml
+import pandas as pd
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-class FollowersScraper:
-    def __init__(self, driver, config):
-        self.driver = driver
-        self.limit = config.get("scrape_limit", 500)
-        self.delay_seconds = config.get("delay_seconds", 2)
+# Load configuration
+with open("config.yaml", "r") as config_file:
+    config = yaml.safe_load(config_file)
 
-    def scrape_followers(self, username):
-        return self._scrape_list(username, list_type="followers")
+DELAY_MIN = config["settings"]["delay_min"]
+DELAY_MAX = config["settings"]["delay_max"]
+FOLLOWER_LIMIT = config["settings"]["follower_scrape_limit"]
+SEED_USERNAMES = config["seed_usernames"]
+KEYWORDS = ["celulares", "accesorios", "mayorista", "distribuidor"]  # Keywords for filtering retail sellers
 
-    def scrape_following(self, username):
-        return self._scrape_list(username, list_type="following")
+def get_followers(driver, username):
+    """Visits a profile, clicks 'Followers', scrolls inside the pop-up, and scrapes follower usernames."""
+    profile_url = f"https://www.instagram.com/{username}/"
+    driver.get(profile_url)
+    time.sleep(random.randint(DELAY_MIN, DELAY_MAX))
 
-    def _scrape_list(self, username, list_type="followers"):
-        profile_url = f"https://www.instagram.com/{username}/"
-        self.driver.get(profile_url)
-        time.sleep(self.delay_seconds)
+    followers = set()
 
-        try:
-            # Wait until followers/following count link is clickable
-            wait = WebDriverWait(self.driver, 10)
-            # Use xpath to get either followers or following link depending on list_type
-            if list_type == "followers":
-                link_xpath = "//a[contains(@href, '/followers')]"
-            else:
-                link_xpath = "//a[contains(@href, '/following')]"
-            link = wait.until(EC.element_to_be_clickable((By.XPATH, link_xpath)))
+    try:
+        print(f"🔍 Visiting {username}'s profile...")
 
-            link.click()
-            time.sleep(self.delay_seconds)
+        # Wait for the "Followers" button and click it
+        wait = WebDriverWait(driver, 10)
+        followers_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, '/followers/')]")))
+        followers_button.click()
+        time.sleep(5)  # Allow pop-up to load
 
-            scroll_box = wait.until(EC.presence_of_element_located((By.XPATH, "//div[@role='dialog']//ul")))
-        except (NoSuchElementException, TimeoutException, ElementClickInterceptedException) as e:
-            print(f"Could not open {list_type} list for {username}: {str(e)}")
-            return []
+        print("📜 Followers pop-up opened, scrolling & scraping usernames...")
 
-        followers_set = set()
-        prev_height = -1
-        same_height_count = 0
+        # Locate followers pop-up window
+        followers_list = wait.until(EC.presence_of_element_located((By.XPATH, "//div[@role='dialog']/div/div")))
 
-        while len(followers_set) < self.limit:
-            self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scroll_box)
-            time.sleep(self.delay_seconds)
+        # Scroll inside the pop-up dynamically
+        for _ in range(15):  # Adjust scroll depth as needed
+            driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", followers_list)
+            time.sleep(random.uniform(2, 4))
 
-            # Extract usernames from the scroll box
-            user_links = scroll_box.find_elements(By.TAG_NAME, "a")
-            for link_elem in user_links:
-                href = link_elem.get_attribute("href")
+            follower_elements = driver.find_elements(By.XPATH, "//div[@role='dialog']//a[contains(@href, '/')]")
+            for element in follower_elements:
+                href = element.get_attribute("href")
                 if href:
-                    parts = href.strip('/').split('/')
-                    if len(parts) >= 1:
-                        user = parts[-1]
-                        if user and user not in followers_set and user != username:
-                            followers_set.add(user)
+                    follower_username = href.split("/")[-2]
 
-            # Check if scroll height changed to stop scrolling if end reached
-            current_height = self.driver.execute_script("return arguments[0].scrollTop", scroll_box)
-            if current_height == prev_height:
-                same_height_count += 1
-                if same_height_count >= 3:  # Allow a few attempts
-                    break
-            else:
-                same_height_count = 0
-                prev_height = current_height
+                    # Scrape only if follower bio matches keywords
+                    bio_text = element.get_attribute("innerText").lower()
+                    if any(keyword in bio_text for keyword in KEYWORDS):
+                        followers.add(follower_username)
 
-        # Close the modal by pressing ESC or clicking outside (optional)
-        try:
-            close_button = self.driver.find_element(By.XPATH, "//div[@role='dialog']//button")
-            close_button.click()
-        except Exception:
-            pass  # Ignore if close button not found
+            if len(followers) >= FOLLOWER_LIMIT:
+                break
 
-        return list(followers_set)[:self.limit]
+        print(f"✅ Collected {len(followers)} filtered followers from {username}")
+        return list(followers)
+
+    except Exception as e:
+        print(f"❌ Failed to scrape followers for {username}: {e}")
+        return []
+
+def scrape_followers(driver):
+    """Scrapes followers for seed usernames from the config file."""
+    all_followers = set()
+
+    for username in SEED_USERNAMES:
+        followers = get_followers(driver, username)
+        all_followers.update(followers)
+
+        if len(all_followers) >= FOLLOWER_LIMIT:
+            break
+
+    # Save results to CSV
+    df = pd.DataFrame({"Username": list(all_followers)})
+    df.to_csv("data/instagram_followers.csv", index=False)
+    print(f"✅ Scraping complete! {len(all_followers)} followers saved to data/instagram_followers.csv")
+
+    return list(all_followers)  # Returns newly collected followers for next scraper
