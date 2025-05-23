@@ -2,15 +2,20 @@ import os
 import time
 import random
 import yaml
+import pandas as pd
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
+
+# Ensure correct import paths
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'scrapers')))
+
 from scrapers.profile_scraper import scrape_profiles
 from scrapers.bio_scraper import scrape_bios
-from scrapers.followers_scraper import scrape_followers
+from scrapers.followers_scraper import scrape_followers_and_following
 
 # Load environment variables (credentials)
 dotenv_path = os.path.join(os.getcwd(), ".env")
@@ -52,9 +57,9 @@ time.sleep(random.randint(5, 10))
 # Enter login credentials
 try:
     print("🔑 Entering login credentials...")
-    driver.find_element(By.NAME, "username").send_keys(INSTAGRAM_USERNAME)
-    driver.find_element(By.NAME, "password").send_keys(INSTAGRAM_PASSWORD)
-    driver.find_element(By.NAME, "password").send_keys(Keys.RETURN)
+    driver.find_element("name", "username").send_keys(INSTAGRAM_USERNAME)
+    driver.find_element("name", "password").send_keys(INSTAGRAM_PASSWORD)
+    driver.find_element("name", "password").send_keys(Keys.RETURN)
 
     time.sleep(random.randint(5, 10))  # Wait for login to process
     print("✅ Login details entered successfully!")
@@ -67,7 +72,7 @@ except Exception as e:
 try:
     print("🔍 Checking for 2FA prompt...")
     time.sleep(5)  # Wait for potential 2FA prompt
-    security_code_input = driver.find_elements(By.NAME, "verificationCode")
+    security_code_input = driver.find_elements("name", "verificationCode")
 
     if security_code_input:
         print("⚠️ Instagram requires Two-Factor Authentication (2FA).")
@@ -119,16 +124,28 @@ except Exception as e:
     driver.quit()
     exit()
 
-# Start scraping process using the same WebDriver session
-print("🚀 Starting follower scraping...")
-followers = scrape_followers(driver)
-
+# Start scraping process in the correct order
 print("🚀 Scraping profiles...")
-scrape_profiles(driver, followers)  # Pass WebDriver session
+profiles = scrape_profiles(driver, SEED_USERNAMES)  # Extracts full name, follower count, etc.
 
 print("🚀 Scraping bios...")
-scrape_bios(driver)  # Pass WebDriver session
+bios = scrape_bios(driver, SEED_USERNAMES)  # Enriches profiles with bio-related data
+
+print("🚀 Scraping followers and following...")
+new_usernames = scrape_followers_and_following(driver, SEED_USERNAMES)  # Expands search for phone retailers
+
+print(f"📂 Total new usernames found: {len(new_usernames)}")
 
 # Close browser session after all scraping is done
 driver.quit()
 print("✅ Scraping process completed successfully!")
+
+# Save final combined data to CSV
+df_profiles = pd.DataFrame(profiles)
+df_bios = pd.DataFrame(bios)
+
+# Merge profiles and bios before exporting
+final_df = pd.merge(df_profiles, df_bios, on="Username", how="outer")
+final_df.to_csv("data/instagram_scraped_data.csv", index=False)
+
+print("✅ Final data saved to data/instagram_scraped_data.csv")

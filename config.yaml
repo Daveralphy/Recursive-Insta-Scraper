@@ -6,5 +6,5 @@ settings:
   follower_scrape_limit: 500  # Stop scraping when this many usernames are collected
 
 seed_usernames:
-  - gsm.latam
+  - gsmplusvrsac
   - iphone.miami
