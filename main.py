@@ -214,7 +214,7 @@ for username in SEED_USERNAMES:
 
 # 2. Expand search for new relevant profiles using followers_scraper
 print("\n🚀 Expanding search for new relevant profiles using followers/following...")
-new_usernames = scrape_followers_and_following(driver, SEED_USERNAMES)
+new_usernames = scrape_followers_and_following(driver, SEED_USERNAMES, scrape_profiles)
 print(f"📂 Total new relevant usernames found: {len(new_usernames)}")
 
 # 3. Scrape full profile and bio data for newly found usernames

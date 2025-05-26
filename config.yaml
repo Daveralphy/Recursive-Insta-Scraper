@@ -1,10 +1,41 @@
 settings:
-  visible_browser: false  # Set to false for headless mode
+  visible_browser: true  # Set to false for headless mode
   delay_min: 10  # Minimum wait time (in seconds) between requests
   delay_max: 30  # Maximum wait time (in seconds) between requests
   recursion_depth: 1  # How deep to scrape followers (0 = no recursion)
   follower_scrape_limit: 500  # Stop scraping when this many usernames are collected
 
 seed_usernames:
-  - gsmplusvrsac
-  - iphone.miami
+  - quality_gadgets_hub
+keywords:
+  - celulares  # "Cell phones" in Spanish
+  - accesorios  # "Accessories" in Spanish
+  - mayorista  # "Wholesaler" in Spanish
+  - distribuidor  # "Distributor" in Spanish
+  - smartphone  # Common term in LATAM
+  - movil  # "Mobile phone" in Spanish
+  - telefone  # "Telephone" in Portuguese
+  - tecnologia  # "Technology" in Spanish
+  - electrónica  # "Electronics" in Spanish
+  - reparacion  # "Repair" in Spanish
+  - tienda  # "Store" in Spanish
+  - dispositivos  # "Devices" in Spanish
+  - informática  # "IT/Computing" in Spanish
+  - accesoriosmoviles  # "Mobile accessories" in Spanish
+  - celulareschile  # Example keyword specific to Chile
+  - celularesmexico  # Example keyword specific to Mexico
+  - gadgets  # General tech term in LATAM
+  - tecnologiaavanzada  # "Advanced technology" in Spanish
+  - tech
+  - fone
+  - phone
+  - iphone
+  - samsung
+  - xiaomi
+  - motorola
+  - huawei
+  - oppo
+  - realme
+  - nokia
+  - sony
+  - lg

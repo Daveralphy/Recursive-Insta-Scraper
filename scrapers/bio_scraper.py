@@ -69,6 +69,16 @@ def get_bio_data(driver, username):
 
         print(f"  Profile page for {username} loaded for bio scraping.")
 
+        # Check for "...more" button & click it if present
+        try:
+            more_button = driver.find_element(By.XPATH, "//button[contains(text(), 'more')]")
+            if more_button.is_displayed():
+                print(f"  Expanding full bio for {username}...")
+                more_button.click()
+                time.sleep(random.uniform(2, 3))  # Allow bio to expand
+        except NoSuchElementException:
+            pass  # No "...more" button found, continue normally
+
         # Extract Bio Text & Separate Full Name
         try:
             bio_element = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'x7a106z')]")))
