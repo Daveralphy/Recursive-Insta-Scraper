@@ -5,10 +5,9 @@ import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # Load configuration settings
-# Assuming config.yaml is in the root directory accessible from where main.py runs
 with open("config.yaml", "r") as config_file:
     config = yaml.safe_load(config_file)
 
@@ -17,85 +16,93 @@ DELAY_MAX = config["settings"]["delay_max"]
 
 def get_profile_data(driver, username):
     """
-    Extracts full name, username, followers count, and following count
-    from an Instagram profile using a pre-logged-in WebDriver instance.
+    Extracts full name from the third line below followers/following counts.
+    Ensures profile URL is correctly included in the exported data.
+    Filters out Meta URLs.
     """
     profile_url = f"https://www.instagram.com/{username}/"
     print(f"🔍 Scraping profile: {username}")
     driver.get(profile_url)
-    time.sleep(random.randint(DELAY_MIN, DELAY_MAX)) # Add delay after navigating to profile
+    time.sleep(random.randint(DELAY_MIN, DELAY_MAX))  
 
     profile_data = {
         "Username": username,
         "Full Name": "",
-        "Follower Count": "0", # Default value, will be overwritten if found
-        "Following Count": "0", # Default value, will be overwritten if found
-        "Profile URL": profile_url
+        "Follower Count": "0",
+        "Following Count": "0",
+        "Profile URL": profile_url,
+        "External Link": ""  # Ensure external link filtering
     }
 
     try:
-        # Wait for the main profile header to load, indicating the page content is ready
-        wait = WebDriverWait(driver, 15) # Increased wait time for robustness
-        wait.until(EC.presence_of_element_located((By.XPATH, "//header//h2")))
+        wait = WebDriverWait(driver, 15)  
+        wait.until(EC.presence_of_element_located((By.XPATH, "//header")))
+
         print(f"  Profile page for {username} loaded.")
 
-        # Extract Full Name
+        # Extract Full Name from the **third line, below followers/following counts**
         try:
-            # Common XPath for the element containing the full name (often an h2 with specific classes)
-            # This XPath targets a text element that is typically the full name on the profile.
-            full_name_element = wait.until(EC.presence_of_element_located((By.XPATH, "//h2[contains(@class, 'x1lli2ws') and contains(@class, 'x1n2onr6') and contains(@class, 'xhnbmfe')]")))
+            full_name_element = wait.until(EC.presence_of_element_located((By.XPATH, "//header/section/div[3]/div")))
             profile_data["Full Name"] = full_name_element.text.strip()
-        except TimeoutException:
-            print(f"  Full name element not found/loaded for {username}. (XPath might be outdated)")
-        except NoSuchElementException:
-            print(f"  Full name not found for {username}. (XPath might be outdated)")
+            print(f"  Full name extracted: {profile_data['Full Name']}")
+        except (TimeoutException, NoSuchElementException):
+            print(f"  Full name element not found for {username}, trying first line of bio instead.")
 
+            # Fallback: Use First Line of Bio if Full Name Not Found
+            try:
+                bio_element = wait.until(EC.presence_of_element_located((By.XPATH, "//header/section/div/span")))
+                bio_text = bio_element.text.strip()
+                first_line = bio_text.split("\n")[0]  
+                profile_data["Full Name"] = first_line  
+                print(f"  Using first line of bio as full name: {first_line}")
+            except:
+                print(f"  Bio extraction failed for {username}. Full name not found.")
 
         # Extract Follower Count
         try:
-            # Look for the <a> tag with an href containing '/followers/' and get the count from its child span.
-            # The count itself is often in a 'title' attribute or as text.
             followers_element = wait.until(EC.presence_of_element_located((By.XPATH, "//a[contains(@href, '/followers/')]/span/span")))
-            followers_count_text = followers_element.get_attribute("title") or followers_element.text
-            profile_data["Follower Count"] = followers_count_text.replace(',', '').strip() # Remove commas for clean numbers
-        except TimeoutException:
-            print(f"  Follower count element not found/loaded for {username}. (XPath might be outdated)")
-        except NoSuchElementException:
-            print(f"  Follower count not found for {username}. (XPath might be outdated)")
+            profile_data["Follower Count"] = followers_element.text.replace(',', '').strip()
+        except:
+            print(f"  Follower count not found for {username}.")
 
         # Extract Following Count
         try:
-            # Similar to followers, but looking for '/following/'.
             following_element = wait.until(EC.presence_of_element_located((By.XPATH, "//a[contains(@href, '/following/')]/span/span")))
-            following_count_text = following_element.get_attribute("title") or following_element.text
-            profile_data["Following Count"] = following_count_text.replace(',', '').strip() # Remove commas for clean numbers
-        except TimeoutException:
-            print(f"  Following count element not found/loaded for {username}. (XPath might be outdated)")
-        except NoSuchElementException:
-            print(f"  Following count not found for {username}. (XPath might be outdated)")
+            profile_data["Following Count"] = following_element.text.replace(',', '').strip()
+        except:
+            print(f"  Following count not found for {username}.")
 
-        print(f"✅ Scraped data for {username}:")
-        for key, value in profile_data.items():
-            print(f"    {key}: {value}")
+        # Extract External Link (Filter Out Meta URLs)
+        try:
+            external_link_element = driver.find_element(By.XPATH, "//header/section/div/a")
+            external_link = external_link_element.get_attribute("href")
+
+            if "meta.com" in external_link or "instagram.com" in external_link:
+                profile_data["External Link"] = ""  # Prevent storing Meta/Instagram links
+                print(f"  Ignoring Meta/Instagram link: {external_link}")
+            else:
+                profile_data["External Link"] = external_link  
+                print(f"  External link found: {external_link}")
+        except NoSuchElementException:
+            print(f"  External link not found for {username}.")
+
+        print(f"✅ Scraped data for {username}: {profile_data}")
 
     except TimeoutException:
-        print(f"❌ Timeout while loading page for {username}. This often means the page did not load completely within the given time, or the initial selectors are incorrect.")
-        print("  Current page source for debugging (first 2000 chars):")
-        print(driver.page_source[:2000]) # Print first 2000 characters of page source for debugging
+        print(f"❌ Timeout while loading page for {username}.")
     except Exception as e:
-        print(f"❌ An unexpected error occurred while scraping {username}: {e}")
+        print(f"❌ Error scraping {username}: {e}")
 
     return profile_data
 
 def scrape_profiles(driver, seed_usernames):
-    """Scrapes profile data for given seed usernames and returns structured data."""
+    """Scrapes profile data for given seed usernames."""
     profiles = []
 
     for username in seed_usernames:
         profile_data = get_profile_data(driver, username)
         if profile_data:
             profiles.append(profile_data)
-        # Introduce a random delay between requests to avoid rate limiting
-        time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+        time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))  
 
     return profiles
