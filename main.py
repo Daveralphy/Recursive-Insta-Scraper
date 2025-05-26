@@ -191,84 +191,84 @@ except Exception as e:
 # --- Start comprehensive scraping process ---
 all_profiles_data = []
 all_bios_data = []
-processed_usernames = set() # Keep track of usernames for which we've already scraped full data
+processed_usernames = set()
 
-# 1. Scrape initial seed usernames for profile and bio data
 print("\n🚀 Scraping initial seed usernames for full profile and bio data...")
 for username in SEED_USERNAMES:
     if username not in processed_usernames:
-        profile_data = scrape_profiles(driver, [username]) # scrape_profiles expects a list
-        if profile_data:
+        profile_data = scrape_profiles(driver, [username])
+        bio_data = scrape_bios(driver, [username])
+
+        if profile_data and bio_data:
+            # Ensure Full Name is added from Bio Data
+            for profile in profile_data:
+                bio_entry = next((bio for bio in bio_data if bio["Username"] == profile["Username"]), None)
+                if bio_entry:
+                    profile["Full Name"] = bio_entry["Full Name"]  # Merge Full Name from Bio Scraper
+
             all_profiles_data.extend(profile_data)
-        
-        bio_data = scrape_bios(driver, [username]) # scrape_bios expects a list
-        if bio_data:
             all_bios_data.extend(bio_data)
-        
+
         processed_usernames.add(username)
-        time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"])) # Delay between profiles
+        time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))  
 
 # 2. Expand search for new relevant profiles using followers_scraper
 print("\n🚀 Expanding search for new relevant profiles using followers/following...")
 new_usernames = scrape_followers_and_following(driver, SEED_USERNAMES)
 print(f"📂 Total new relevant usernames found: {len(new_usernames)}")
 
-# 3. Scrape full profile and bio data for newly found usernames (if not already processed)
+# 3. Scrape full profile and bio data for newly found usernames
 print("\n🚀 Collecting full data for newly found relevant profiles...")
 for username in new_usernames:
     if username not in processed_usernames:
         print(f"  Scraping full data for new profile: {username}...")
         profile_data = scrape_profiles(driver, [username])
-        if profile_data:
-            all_profiles_data.extend(profile_data)
-        
         bio_data = scrape_bios(driver, [username])
-        if bio_data:
+
+        if profile_data and bio_data:
+            # Ensure Full Name is added from Bio Data
+            for profile in profile_data:
+                bio_entry = next((bio for bio in bio_data if bio["Username"] == profile["Username"]), None)
+                if bio_entry:
+                    profile["Full Name"] = bio_entry["Full Name"]  # Merge Full Name from Bio Scraper
+
+            all_profiles_data.extend(profile_data)
             all_bios_data.extend(bio_data)
-        
+
         processed_usernames.add(username)
-        time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"])) # Delay between new profiles
+        time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))  
 
 # Close browser session after all scraping is done
 driver.quit()
 print("\n✅ Scraping process completed successfully!")
 
 # --- Data Merging and Saving ---
-# Convert lists of dicts to DataFrames
 df_profiles = pd.DataFrame(all_profiles_data)
 df_bios = pd.DataFrame(all_bios_data)
 
-# Remove potential duplicates based on 'Username' before merging
-# This handles cases where a username might have been processed multiple times
+# Remove duplicates & set index
 df_profiles_unique = df_profiles.drop_duplicates(subset=['Username']).set_index('Username')
 df_bios_unique = df_bios.drop_duplicates(subset=['Username']).set_index('Username')
 
-# Merge profiles and bios data
-final_df = df_profiles_unique.merge(df_bios_unique, on="Username", how="outer", suffixes=('_profile', '_bio'))
+# Merge profile and bio data
+final_df = df_profiles_unique.merge(df_bios_unique[["Bio", "WhatsApp Number", "Region", "External Link"]], 
+                                    on="Username", how="left")
 
-# Reset index to make 'Username' a column again
+# Reset index
 final_df = final_df.reset_index()
 
-# Reorder columns to match desired output (optional, but good for consistency)
-desired_columns_order = [
-    "Username",
-    "Full Name",
-    "Follower Count",
-    "Following Count",
-    "Bio",
-    "WhatsApp Number",
-    "Region",
-    "External Link",
-    "Profile URL"
+# Ensure required fields exist
+required_columns = [
+    "Username", "Full Name", "Follower Count", "Following Count",
+    "Bio", "WhatsApp Number", "Region", "External Link", "Profile URL"
 ]
-# Ensure all desired columns exist, fill missing ones with empty string/NaN
-for col in desired_columns_order:
+for col in required_columns:
     if col not in final_df.columns:
-        final_df[col] = '' # Or pd.NA or np.nan
+        final_df[col] = ''  
 
-final_df = final_df[desired_columns_order]
+final_df = final_df[required_columns]
 
-# Save final combined data to CSV
+# Save final data to CSV
 output_dir = "data"
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
