@@ -1,9 +1,10 @@
 settings:
-  visible_browser: true  # Set to false for headless mode
+  visible_browser: false  # Set to false for headless mode
   delay_min: 10  # Minimum wait time (in seconds) between requests
   delay_max: 30  # Maximum wait time (in seconds) between requests
   recursion_depth: 1  # How deep to scrape followers (0 = no recursion)
-  follower_scrape_limit: 500  # Stop scraping when this many usernames are collected
+  follower_scrape_limit: 50  # Stop scraping when this many usernames are collected
+  use_gpt_classification: false # Set this to false
 
 seed_usernames:
   - quality_gadgets_hub

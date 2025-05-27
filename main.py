@@ -18,8 +18,9 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'scrapers')))
 
 from scrapers.profile_scraper import scrape_profiles # This now returns list of dicts {Username: ..., Full Name: ..., ...}
-from scrapers.bio_scraper import scrape_bios         # This now returns list of dicts {Username: ..., Bio: ..., ...}
+# from scrapers.bio_scraper import scrape_bios # REMOVED: profile_scraper handles Bio and Full Name
 from scrapers.followers_scraper import scrape_followers_and_following # This returns only a list of usernames
+from scrapers.classifier import classify_profile # NEW: For Step 5 AI Classification
 
 # Load environment variables (credentials)
 dotenv_path = os.path.join(os.getcwd(), ".env")
@@ -189,90 +190,109 @@ except Exception as e:
     exit()
 
 # --- Start comprehensive scraping process ---
-all_profiles_data = []
-all_bios_data = []
-processed_usernames = set()
+final_scraped_data = [] # Stores all comprehensive profile data
+all_processed_usernames = set() # Tracks all usernames for which a full scrape has been done
 
-print("\n🚀 Scraping initial seed usernames for full profile and bio data...")
+# Step 1: Input Seed Instagram Usernames (implicitly handled by SEED_USERNAMES)
+# Initial full scrape for seed usernames, as they are key relevant profiles
+print("\n🚀 Step 1 & 4 (Partial): Scraping initial seed usernames for full profile data...")
 for username in SEED_USERNAMES:
-    if username not in processed_usernames:
-        profile_data = scrape_profiles(driver, [username])
-        bio_data = scrape_bios(driver, [username])
+    if username not in all_processed_usernames:
+        print(f"    Scraping full data for seed profile: {username}...")
+        profile_data_list = scrape_profiles(driver, [username]) # scrape_profiles expects a list
 
-        if profile_data and bio_data:
-            # Ensure Full Name is added from Bio Data
-            for profile in profile_data:
-                bio_entry = next((bio for bio in bio_data if bio["Username"] == profile["Username"]), None)
-                if bio_entry:
-                    profile["Full Name"] = bio_entry["Full Name"]  # Merge Full Name from Bio Scraper
+        if profile_data_list:
+            final_scraped_data.extend(profile_data_list)
+            for profile in profile_data_list: # Add each scraped username to the set
+                all_processed_usernames.add(profile.get("Username"))
+        else:
+            print(f"    No full profile data collected for seed {username}.")
+        
+        time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))
 
-            all_profiles_data.extend(profile_data)
-            all_bios_data.extend(bio_data)
 
-        processed_usernames.add(username)
-        time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))  
+# Step 2 & 3: Expand search for new relevant profiles using followers_scraper & Light Scrape for AI Filtering
+# The scrape_followers_and_following function now performs the light scrape and filtering internally
+print("\n🚀 Step 2 & 3: Expanding search for new relevant profiles using followers/following and filtering...")
+# The third argument 'scrape_profiles' is implicitly used by followers_scraper for its light scrape
+relevant_usernames_from_expansion = scrape_followers_and_following(driver, list(all_processed_usernames), scrape_profiles)
+print(f"📂 Total new relevant usernames found from expansion and filtering: {len(relevant_usernames_from_expansion)}")
 
-# 2. Expand search for new relevant profiles using followers_scraper
-print("\n🚀 Expanding search for new relevant profiles using followers/following...")
-new_usernames = scrape_followers_and_following(driver, SEED_USERNAMES, scrape_profiles)
-print(f"📂 Total new relevant usernames found: {len(new_usernames)}")
+# Consolidate all usernames that need a full scrape (seeds already scraped, new ones need it)
+# We only want to scrape profiles that haven't been processed yet
+usernames_for_full_scrape_after_expansion = [
+    username for username in relevant_usernames_from_expansion 
+    if username not in all_processed_usernames
+]
 
-# 3. Scrape full profile and bio data for newly found usernames
-print("\n🚀 Collecting full data for newly found relevant profiles...")
-for username in new_usernames:
-    if username not in processed_usernames:
-        print(f"  Scraping full data for new profile: {username}...")
-        profile_data = scrape_profiles(driver, [username])
-        bio_data = scrape_bios(driver, [username])
+print(f"\nTotal unique new usernames to perform full scrape on after initial expansion: {len(usernames_for_full_scrape_after_expansion)}")
 
-        if profile_data and bio_data:
-            # Ensure Full Name is added from Bio Data
-            for profile in profile_data:
-                bio_entry = next((bio for bio in bio_data if bio["Username"] == profile["Username"]), None)
-                if bio_entry:
-                    profile["Full Name"] = bio_entry["Full Name"]  # Merge Full Name from Bio Scraper
 
-            all_profiles_data.extend(profile_data)
-            all_bios_data.extend(bio_data)
+# Step 4: Full Profile Scrape (Continued - for newly found and filtered usernames)
+print("\n🚀 Step 4 (Continued): Performing full profile scrape for newly found relevant accounts...")
+for username in usernames_for_full_scrape_after_expansion:
+    print(f"    Collecting full data for new relevant profile: {username}...")
+    profile_data_list = scrape_profiles(driver, [username])
 
-        processed_usernames.add(username)
-        time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))  
+    if profile_data_list:
+        final_scraped_data.extend(profile_data_list)
+        for profile in profile_data_list: # Ensure each scraped username is added to the set
+            all_processed_usernames.add(profile.get("Username"))
+    else:
+        print(f"    No full profile data collected for new relevant {username}.")
+
+    time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))
 
 # Close browser session after all scraping is done
 driver.quit()
 print("\n✅ Scraping process completed successfully!")
 
-# --- Data Merging and Saving ---
-df_profiles = pd.DataFrame(all_profiles_data)
-df_bios = pd.DataFrame(all_bios_data)
+# --- Data Processing and Saving ---
 
-# Remove duplicates & set index
-df_profiles_unique = df_profiles.drop_duplicates(subset=['Username']).set_index('Username')
-df_bios_unique = df_bios.drop_duplicates(subset=['Username']).set_index('Username')
+# Step 5: AI Classification
+print("\n🚀 Step 5: Classifying all collected profiles...")
+# Iterate through final_scraped_data to add classification
+for profile in final_scraped_data:
+    classification = classify_profile(profile) # Call the classifier function
+    profile["Classification"] = classification
+    # print(f"    Classified {profile.get('Username')}: {profile.get('Classification')}") # Optional for detailed logging
 
-# Merge profile and bio data
-final_df = df_profiles_unique.merge(df_bios_unique[["Bio", "WhatsApp Number", "Region", "External Link"]], 
-                                    on="Username", how="left")
 
-# Reset index
-final_df = final_df.reset_index()
+# Step 6: Save Results
+print("\n🚀 Step 6: Preparing and saving final data...")
 
-# Ensure required fields exist
+# Create DataFrame from collected data
+# Ensure unique profiles by converting to DataFrame and dropping duplicates on 'Username'
+df_final = pd.DataFrame(final_scraped_data)
+
+# Remove any lingering duplicates if a profile was somehow scraped multiple times or partially
+# This can happen if a seed user is also found in followers/following and processed differently
+if not df_final.empty:
+    df_final.drop_duplicates(subset=['Username'], inplace=True, keep='first')
+    df_final.set_index('Username', inplace=True) # Set index for easier merging/reordering
+
+# Ensure all required columns exist and order them correctly
 required_columns = [
-    "Username", "Full Name", "Follower Count", "Following Count",
-    "Bio", "WhatsApp Number", "Region", "External Link", "Profile URL"
+    "Username", # Add Username back as a regular column after reset_index
+    "Full Name", "Follower Count", "Following Count",
+    "Bio", "WhatsApp Number", "WhatsApp Group Link", "Region", "External Link",
+    "Profile URL", "Classification" # Classification is new
 ]
-for col in required_columns:
-    if col not in final_df.columns:
-        final_df[col] = ''  
 
-final_df = final_df[required_columns]
+# Add missing columns with empty string if they don't exist
+for col in required_columns:
+    if col not in df_final.columns:
+        df_final[col] = '' 
+
+# Reorder columns and reset index for final output
+df_final = df_final[required_columns].reset_index(drop=True) # Use drop=True as Username is now a regular column
+
 
 # Save final data to CSV
 output_dir = "data"
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
-output_path = os.path.join(output_dir, "instagram_scraped_data.csv")
-final_df.to_csv(output_path, index=False)
+output_path = os.path.join(output_dir, "instagram_leads.csv")
+df_final.to_csv(output_path, index=False)
 
 print(f"✅ Final data saved to {output_path}")
