@@ -1,86 +1,159 @@
 import os
 import pandas as pd
-import yaml
+# import gspread # Commented out
+# from oauth2client.service_account import ServiceAccountCredentials # Commented out
+# from airtable import Airtable # Commented out
+import time
+from dotenv import load_dotenv
 
-# Load configuration
-with open("config.yaml", "r") as config_file:
-    config = yaml.safe_load(config_file)
+# Load environment variables (for Airtable and Google Sheets credentials)
+dotenv_path = os.path.join(os.getcwd(), ".env")
+load_dotenv(dotenv_path)
 
-EXPORT_TYPE = config.get("settings", {}).get("export_format", "csv")  # Default to CSV
-DATA_FOLDER = "data"
-OUTPUT_FILENAME = os.path.join(DATA_FOLDER, "exported_data.csv")
+def export_data(df, config):
+    """
+    Exports the DataFrame to various formats based on config settings.
 
-# Load scraped CSV files
-followers_file = os.path.join(DATA_FOLDER, "instagram_followers.csv")
-bios_file = os.path.join(DATA_FOLDER, "instagram_bios.csv")
-profiles_file = os.path.join(DATA_FOLDER, "instagram_profiles.csv")
+    Args:
+        df (pd.DataFrame): The DataFrame containing the scraped and classified data.
+        config (dict): The loaded configuration dictionary from config.yaml.
+    """
+    print("\n--- Exporting Final Data (Step 6) ---")
 
-# Read data from CSVs
-followers_df = pd.read_csv(followers_file) if os.path.exists(followers_file) else pd.DataFrame(columns=["Username", "Follower Count"])
-bios_df = pd.read_csv(bios_file) if os.path.exists(bios_file) else pd.DataFrame(columns=["Username", "Bio", "WhatsApp Number", "WhatsApp Group Link", "Type", "External Link"])
-profiles_df = pd.read_csv(profiles_file) if os.path.exists(profiles_file) else pd.DataFrame(columns=["Username", "Full Name", "Region", "Profile URL"])
+    export_settings = config.get("export_settings", {})
+    enabled_formats = export_settings.get("enabled_formats", ["csv"])
+    output_dir = "data"
 
-# Merge datasets based on `Username`
-merged_df = profiles_df.merge(bios_df, on="Username", how="outer").merge(followers_df, on="Username", how="outer")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-# Ensure all required columns exist
-expected_columns = [
-    "Username", "Full Name", "Bio", "WhatsApp Number", "WhatsApp Group Link",
-    "Type", "Region", "Follower Count", "Profile URL", "External Link"
-]
+    # --- CSV Export ---
+    if "csv" in enabled_formats:
+        try:
+            csv_filename = export_settings.get("csv_filename", "instagram_leads.csv")
+            output_path = os.path.join(output_dir, csv_filename)
+            df.to_csv(output_path, index=False)
+            print(f"✅ Data successfully exported to CSV: {output_path}")
+        except Exception as e:
+            print(f"❌ Error exporting to CSV: {e}")
 
-# Check for missing columns and fill with empty values
-for col in expected_columns:
-    if col not in merged_df.columns:
-        merged_df[col] = ""
+    # --- Excel Export ---
+    # This remains active as it does not require external credentials beyond openpyxl
+    if "excel" in enabled_formats:
+        try:
+            excel_filename = export_settings.get("excel_filename", "instagram_leads.xlsx")
+            output_path = os.path.join(output_dir, excel_filename)
+            df.to_excel(output_path, index=False)
+            print(f"✅ Data successfully exported to Excel: {output_path}")
+        except Exception as e:
+            print(f"❌ Error exporting to Excel: {e}")
 
-# Convert numerical columns to strings before filling NaN values
-merged_df["Follower Count"] = merged_df["Follower Count"].astype(str)
-
-# Fill missing values with empty strings
-merged_df.fillna("", inplace=True)
-
-# Reorder columns properly
-merged_df = merged_df[expected_columns]
-
-# Save to CSV
-merged_df.to_csv(OUTPUT_FILENAME, index=False)
-print(f"✅ Data export complete! File saved as {OUTPUT_FILENAME}")
-
-# Optional: Export to Excel
-if EXPORT_TYPE == "xlsx":
-    excel_filename = os.path.join(DATA_FOLDER, "exported_data.xlsx")
-    merged_df.to_excel(excel_filename, index=False)
-    print(f"✅ Data also saved as {excel_filename}")
-
-# Optional: Export to Google Sheets or Airtable (if credentials exist)
-if EXPORT_TYPE in ["google_sheets", "airtable"]:
-    credentials = config.get("export_credentials", {})
-    
-    if EXPORT_TYPE == "google_sheets" and "google_sheet_id" in credentials:
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_file(credentials["google_creds_file"], scopes=scope)
-        client = gspread.authorize(creds)
-        sheet = client.open_by_key(credentials["google_sheet_id"]).sheet1
-        sheet.clear()
-        sheet.append_row(merged_df.columns.tolist())
-        for row in merged_df.values.tolist():
-            sheet.append_row(row)
-        print("✅ Data exported to Google Sheets successfully!")
-
-    if EXPORT_TYPE == "airtable" and "airtable_api_key" in credentials and "airtable_base_id" in credentials:
-        import requests
+    # --- Airtable Export ---
+    # This section is commented out by default.
+    # To enable Airtable export:
+    # 1. Uncomment the 'import Airtable' line at the top of this file.
+    # 2. Uncomment the entire 'if "airtable" in enabled_formats:' block below.
+    # 3. Ensure 'airtable' is enabled in 'enabled_formats' in config.yaml.
+    # 4. Add your AIRTABLE_API_KEY and AIRTABLE_BASE_ID to your .env file.
+    if "airtable" in enabled_formats:
+        print("ℹ️ Airtable export code is commented out in exporter.py. Please uncomment it to enable this feature.")
+        # # Get credentials from environment variables
+        # api_key = os.getenv("AIRTABLE_API_KEY")
+        # base_id = os.getenv("AIRTABLE_BASE_ID")
         
-        airtable_api_url = f"https://api.airtable.com/v0/{credentials['airtable_base_id']}/exported_data"
-        headers = {"Authorization": f"Bearer {credentials['airtable_api_key']}", "Content-Type": "application/json"}
+        # # Get table name from config.yaml (since it's specific to the project)
+        # airtable_config = export_settings.get("airtable", {})
+        # table_name = airtable_config.get("table_name")
+
+        # if not all([api_key, base_id, table_name]):
+        #     print("❌ Airtable export skipped: Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID in .env or Table Name in config.yaml. Please check your setup.")
+        # else:
+        #     try:
+        #         print(f"🔄 Attempting to export to Airtable table: '{table_name}'...")
+        #         airtable = Airtable(base_id, api_key)
+                
+        #         # Option 1: Delete existing records and re-upload (simpler for fresh export)
+        #         existing_records = airtable.get_all()
+        #         if existing_records:
+        #             print(f"    Deleting {len(existing_records)} existing records in Airtable...")
+        #             # Batch delete for efficiency and to respect rate limits
+        #             record_ids_to_delete = [record['id'] for record in existing_records]
+        #             delete_batch_size = 10 # Airtable's batch delete limit
+        #             for i in range(0, len(record_ids_to_delete), delete_batch_size):
+        #                 batch_ids = record_ids_to_delete[i:i + delete_batch_size]
+        #                 airtable.batch_delete(batch_ids)
+        #                 print(f"    Deleted batch {int(i/delete_batch_size) + 1}/{(len(record_ids_to_delete) + delete_batch_size - 1) // delete_batch_size} from Airtable.")
+        #                 time.sleep(0.1) # Small delay to avoid hitting rate limits too hard
+
+        #         # Prepare records for Airtable
+        #         records_to_create = df.to_dict(orient='records')
+                
+        #         # Airtable API has a limit of 10 records per batch for creation
+        #         create_batch_size = 10
+        #         for i in range(0, len(records_to_create), create_batch_size):
+        #             batch = records_to_create[i:i + create_batch_size]
+        #             airtable.batch_create(batch)
+        #             print(f"    Uploaded batch {int(i/create_batch_size) + 1}/{(len(records_to_create) + create_batch_size - 1) // create_batch_size} to Airtable.")
+        #             time.sleep(0.3) # Small delay to respect rate limits
+
+        #         print(f"✅ Data successfully exported to Airtable table: '{table_name}'")
+
+        #     except Exception as e:
+        #         print(f"❌ Error exporting to Airtable: {e}")
+        #         print("    Please ensure your Airtable API Key, Base ID in .env and Table Name in config.yaml are correct.")
+        #         print("    Also, check if the column names in your DataFrame match those in Airtable.")
+
+
+    # --- Google Sheets Export ---
+    # This section is commented out by default.
+    # To enable Google Sheets export:
+    # 1. Uncomment the 'import gspread' and 'from oauth2client...' lines at the top of this file.
+    # 2. Uncomment the entire 'if "google_sheets" in enabled_formats:' block below.
+    # 3. Ensure 'google_sheets' is enabled in 'enabled_formats' in config.yaml.
+    # 4. Complete the Google Sheets API setup (service account, JSON file) and add
+    #    your GOOGLE_SHEETS_SPREADSHEET_ID to your .env file.
+    if "google_sheets" in enabled_formats:
+        print("ℹ️ Google Sheets export code is commented out in exporter.py. Please uncomment it to enable this feature.")
+        # gsheets_config = export_settings.get("google_sheets", {})
+        # credentials_file = gsheets_config.get("credentials_file")
         
-        records = [{"fields": dict(zip(merged_df.columns, row))} for row in merged_df.values.tolist()]
-        response = requests.post(airtable_api_url, headers=headers, json={"records": records})
+        # # Get spreadsheet ID from environment variable
+        # spreadsheet_id = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID")
         
-        if response.status_code == 200:
-            print("✅ Data exported to Airtable successfully!")
-        else:
-            print(f"❌ Airtable export failed: {response.text}")
+        # # Get sheet name from config.yaml
+        # sheet_name = gsheets_config.get("sheet_name")
+
+        # if not all([credentials_file, spreadsheet_id, sheet_name]):
+        #     print("❌ Google Sheets export skipped: Missing credentials file or Sheet Name in config.yaml, or GOOGLE_SHEETS_SPREADSHEET_ID in .env. Please check your setup.")
+        #     print("    Refer to the setup instructions for Google Sheets API.")
+        # else:
+        #     try:
+        #         print(f"🔄 Attempting to export to Google Sheet: '{sheet_name}'...")
+        #         # Authenticate
+        #         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        #         creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_file, scope)
+        #         client = gspread.authorize(creds)
+
+        #         # Open the spreadsheet by ID
+        #         spreadsheet = client.open_by_id(spreadsheet_id)
+        #         worksheet = spreadsheet.worksheet(sheet_name)
+
+        #         # Clear existing data
+        #         worksheet.clear()
+
+        #         # Update with headers and data
+        #         data_to_upload = [df.columns.values.tolist()] + df.values.tolist()
+                
+        #         worksheet.update(data_to_upload)
+                
+        #         print(f"✅ Data successfully exported to Google Sheet: '{spreadsheet.title}' (Worksheet: '{sheet_name}')")
+
+        #     except FileNotFoundError:
+        #         print(f"❌ Error: Google Sheets credentials file not found at '{credentials_file}'. Please check the path.")
+        #     except gspread.exceptions.SpreadsheetNotFound:
+        #         print(f"❌ Error: Google Sheet with ID '{spreadsheet_id}' not found. Check the ID and sharing permissions.")
+        #     except gspread.exceptions.WorksheetNotFound:
+        #         print(f"❌ Error: Worksheet named '{sheet_name}' not found in the spreadsheet. Check the sheet name.")
+        #     except Exception as e:
+        #         print(f"❌ Error exporting to Google Sheets: {e}")
+        #         print("    Please ensure your service account has Editor access to the Google Sheet and check all IDs/paths.")

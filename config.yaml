@@ -1,42 +1,65 @@
+# config.yaml
+
 settings:
-  visible_browser: false  # Set to false for headless mode
-  delay_min: 10  # Minimum wait time (in seconds) between requests
-  delay_max: 30  # Maximum wait time (in seconds) between requests
-  recursion_depth: 1  # How deep to scrape followers (0 = no recursion)
-  follower_scrape_limit: 50  # Stop scraping when this many usernames are collected
-  use_gpt_classification: false # Set this to false
+  delay_min: 5
+  delay_max: 10
+  follower_scrape_limit: 5
+  unlimited_follower_scrape: False
+  scroll_attempts_max: 20
+  recursion_depth: 1
+  visible_browser: false # Set to False for headless (invisible) browser operation
+
+keywords:
+  - "celulares"
+  - "accesorios"
+  - "mayorista"
+  - "distribuidor"
+  - "smartphone"
+  - "movil"
+  - "telefone"
+  - "tecnologia"
+  - "gadgets"
+  - "electronics"
+  - "smartphones"
+  - "mobile"
+  - "tech"
+  - "gadget"
+  - "mobile shop"
+  - "mobile store"
+
+  
+# REQUIRED: List of Instagram usernames to start scraping from.
 
 seed_usernames:
-  - quality_gadgets_hub
-keywords:
-  - celulares  # "Cell phones" in Spanish
-  - accesorios  # "Accessories" in Spanish
-  - mayorista  # "Wholesaler" in Spanish
-  - distribuidor  # "Distributor" in Spanish
-  - smartphone  # Common term in LATAM
-  - movil  # "Mobile phone" in Spanish
-  - telefone  # "Telephone" in Portuguese
-  - tecnologia  # "Technology" in Spanish
-  - electrónica  # "Electronics" in Spanish
-  - reparacion  # "Repair" in Spanish
-  - tienda  # "Store" in Spanish
-  - dispositivos  # "Devices" in Spanish
-  - informática  # "IT/Computing" in Spanish
-  - accesoriosmoviles  # "Mobile accessories" in Spanish
-  - celulareschile  # Example keyword specific to Chile
-  - celularesmexico  # Example keyword specific to Mexico
-  - gadgets  # General tech term in LATAM
-  - tecnologiaavanzada  # "Advanced technology" in Spanish
-  - tech
-  - fone
-  - phone
-  - iphone
-  - samsung
-  - xiaomi
-  - motorola
-  - huawei
-  - oppo
-  - realme
-  - nokia
-  - sony
-  - lg
+  - "quality_gadgets_hub"
+  - "mobile_shop_latam"
+
+# REQUIRED: List of user agents for the browser.
+# The scraper will randomly pick one from this list for each session.
+# Having multiple user agents can help avoid detection.
+user_agents:
+  - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+  - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+  - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
+  - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
+  - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+  - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/108.0.1462.54"
+  - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/108.0"
+  # Add more user agents here if desired.
+
+export_settings:
+  enabled_formats:
+    - "csv"
+    # - "excel"
+    # - "airtable"
+    # - "google_sheets"
+  
+  csv_filename: "instagram_leads.csv"
+  excel_filename: "instagram_leads.xlsx"
+
+  airtable:
+    table_name: "Instagram Leads"
+
+  google_sheets:
+    credentials_file: "google_sheets_service_account.json"
+    sheet_name: "Instagram Leads"
