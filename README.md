@@ -45,8 +45,7 @@ Python-based scraper for discovering Latin American cellphone resellers, distrib
 `pip install -r requirements.txt`
 5. Create and configure your .env file:
 In the root directory of the project, create a new file named .env (note the leading dot).
-Add your Instagram login credentials and (optionally) your OpenAI API key to this file, replacing the placeholder values:
-Paste the following into your .env file (just as it is)
+6. Paste the following into your .env file
 
 ```INSTAGRAM_USERNAME="your_instagram_username"
 INSTAGRAM_PASSWORD="your_instagram_password"
@@ -58,15 +57,15 @@ OPENAI_API_KEY="your_openai_api_key_here"
 
 # Optional: Google Sheets Credentials (uncomment and fill if using Google Sheets export)
 # GOOGLE_SHEETS_SPREADSHEET_ID="your_google_sheet_id_here"
-
-Important: Keep your .env file secure and do not share it or commit it to version control.
-5. Configure your settings in `config.yaml`.
 ```
+
+'Important: Keep your .env file secure and do not share it or commit it to version control.'
+5. Configure your settings in `config.yaml`.
 ---
 
 ## Usage
 
-Run the main script:
+1. Run the main script:
 `python main.py`
 
 Use the config file to adjust scraping limits, delays, and recursion toggle.
@@ -75,24 +74,29 @@ Use the config file to adjust scraping limits, delays, and recursion toggle.
 
 ## How It Works
 
-- The bot starts by taking a list of seed Instagram usernames.
-- It scrapes their followers and following lists, respecting the configured limit.
-- For each scraped username, it performs a light scrape of their bio and name.
-- Using AI filtering or keyword matching (Spanish and Portuguese keywords), it filters out irrelevant profiles.
-- For approved profiles, it performs a full scrape to extract detailed info, including WhatsApp numbers and group links using regex.
-- Profiles are classified into business types based on bio content.
-- Results are exported cleanly and deduplicated into the chosen output format.
+- The bot starts by taking initial Instagram usernames from config.yaml. These "seed" accounts act as starting points for a broader search.
+- For each seed username, the bot scrapes their followers and following lists. This expansion respects configurable limits or can run in an unlimited mode, as defined in config.yaml. Discovered usernames are managed in a queue, with automatic deduplication.
+- New usernames undergo a "light scrape" to quickly extract their public bio, full name, and external link. Using keyword matching (from config.yaml with Spanish/Portuguese focus) and optional AI filtering, irrelevant profiles are quickly filtered. This saves time and helps avoid detection.
+- Only profiles that pass the relevance filter receive a full, detailed scrape. The bot extracts comprehensive information including username, full name, cleaned bio, external link, follower count, and profile URL. Regex patterns extract WhatsApp numbers and group links. It also attempts region detection from WhatsApp numbers.
+- Each fully scraped and approved profile is classified into business types. Rule-based logic (and optional AI) categorizes profiles as "Retailer," "Reseller," "Distributor," "Repair Shop," or "Phone & Accessories," based on bio content and keywords.
+- Processed and classified data is immediately exported. This "live export" writes data to chosen formats as soon as a profile is ready, without waiting for the entire process. The system prevents duplicates, ensuring clean output. Results export to CSV (default), Excel, Google Sheets, or Airtable; the latter two require specific credential setup.
 
 ---
 
 ## Configuration
 
-All configurable options are found in `config/config.yaml`. These include:
+All configurable options are found in `config.yaml`. These include:
 
-- Scrape limit (e.g., 500 or unlimited)
-- Delay between requests (1–3 seconds recommended)
-- Recursion toggle to feed found usernames back into scraping
-- Proxy settings for rotation
+- Scrape Limits: Control how many followers/following are scraped (e.g., a set number like 500 or unlimited).
+- Delay Settings: Adjust the random pause between actions (delay_min and delay_max), with 1-3 seconds generally recommended to avoid detection.
+- Recursion Depth: Determine how many levels deep the bot will scrape followers of followers.
+- Browser Visibility: Choose to run the browser visibly (visible_browser: true) for debugging or in headless (invisible) mode (visible_browser: false).
+- Keywords: A list of terms used for filtering and classifying relevant phone-related profiles.
+- Seed Usernames: The initial Instagram profiles from which the scraping process begins.
+- User Agents: A list of browser identities the scraper randomly uses for each session to help avoid detection.
+- Export Formats: Enable or disable output formats like CSV, Excel, Airtable, and Google Sheets.
+- File Naming: Set custom filenames for CSV and Excel exports.
+- Airtable/Google Sheets Details: Configure specific table names or credentials for these respective export options.
 
 ---
 
