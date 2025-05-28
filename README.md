@@ -19,21 +19,16 @@ Python-based scraper for discovering Latin American cellphone resellers, distrib
 ## 📁 Project Structure
 
 - latam-instagram-whatsapp-scraper/
-  - scraper/ - Core scraping modules
-    - __init__.py
-    - followers_scraper.py - Scrapes followers and following lists
-    - bio_scraper.py - Scrapes light profile info for filtering
-    - profile_scraper.py - Scrapes full profile details
-    - whatsapp_detector.py - Detects WhatsApp numbers and group links
-    - classifier.py - AI or rule-based business type classification
-    - exporter.py - Exports results to CSV, Google Sheets, or Airtable
-  - config/
-    - config.yaml - Configuration settings (limits, delays, recursion toggle)
-  - utils/
-    - helpers.py - Utility functions and helpers
-  - main.py - Main script to run the bot
-  - requirements.txt - Python dependencies list
-  - README.md - Project documentation
+  - data/ Directory where all exported data files (CSV, Excel) will be saved.
+  - scrapers/ - Contains the core Python modules responsible for various scraping and data processing tasks.
+    - classifier.py - Handles cleaning scraped profile bios, extracting contact information (like WhatsApp numbers and group links), and classifying profiles based on business type (e.g., Retailer, Distributor).
+    - followers_scraper.py - Manages the process of navigating to Instagram profiles, scraping their followers and following lists, and recursively expanding the search to find new relevant leads.
+    - profile_scraper.py - Dedicated module for performing a detailed scrape of individual Instagram profiles, collecting comprehensive information such as full name, bio, external links, and follower/following counts.
+  - config.yaml - The central configuration file where you can adjust various settings for the scraper, including delays, scraping limits, recursion depth, and export preferences.
+  - exporter.py - Responsible for handling the "live export" functionality, writing processed data incrementally to selected output formats like CSV, Excel, Google Sheets, and Airtable.
+  - main.py - The primary entry point of the application, orchestrating the entire scraping workflow from login to data processing and export.
+  - requirements.txt - Lists all Python package dependencies required for the project, ensuring a consistent development and deployment environment.
+  - README.md - This documentation file, providing an overview of the project, setup instructions, and usage guidelines.
 
 ---
 
@@ -48,7 +43,24 @@ Python-based scraper for discovering Latin American cellphone resellers, distrib
 `source venv/bin/activate` # On Windows: venv\Scripts\activate
 4. Install dependencies:
 `pip install -r requirements.txt`
-5. Configure your settings in `config/config.yaml`.
+5. Create and configure your .env file:
+In the root directory of the project, create a new file named .env (note the leading dot).
+Add your Instagram login credentials and (optionally) your OpenAI API key to this file, replacing the placeholder values:
+Paste the following into your .env file (just as it is)
+
+```INSTAGRAM_USERNAME="your_instagram_username"
+INSTAGRAM_PASSWORD="your_instagram_password"
+OPENAI_API_KEY="your_openai_api_key_here"
+
+# Optional: Airtable Credentials (uncomment and fill if using Airtable export)
+# AIRTABLE_API_KEY="keyXXXXXXXXXXXXXX"
+# AIRTABLE_BASE_ID="appXXXXXXXXXXXXXX"
+
+# Optional: Google Sheets Credentials (uncomment and fill if using Google Sheets export)
+# GOOGLE_SHEETS_SPREADSHEET_ID="your_google_sheet_id_here"
+
+Important: Keep your .env file secure and do not share it or commit it to version control.
+5. Configure your settings in `config.yaml`.```
 
 ---
 
