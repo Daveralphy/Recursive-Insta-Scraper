@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'scrapers')))
 
 # Corrected Import: Import 'scrape_profiles' as it's the main profile scraper function
-from profile_scraper import scrape_profiles 
+from profile_scraper import scrape_profiles
 
 
 # Load configuration (this file will still load its own config as per your request)
@@ -64,7 +64,7 @@ def light_scrape_and_filter_profile(driver, username, config_for_keywords): # Ad
     # Use scrape_profiles to get the full profile data (which includes bio, full name, external link)
     # This is effectively a "light" scrape for filtering purposes here.
     profile_data_list = scrape_profiles(driver, [username])
-    
+
     if not profile_data_list:
         return None # Profile not found or couldn't be scraped
 
@@ -93,8 +93,8 @@ def scroll_followers_popup(driver, scroll_attempts):
     """
     try:
         # ORIGINAL WORKING XPATH for the scrollable area from your previous file
-        scrollable_element_xpath = "//div[@role='dialog']//div[contains(@class, 'x1ja2u2z') and contains(@class, 'x1afv6gd')]/div/div" 
-        
+        scrollable_element_xpath = "//div[@role='dialog']//div[contains(@class, 'x1ja2u2z') and contains(@class, 'x1afv6gd')]/div/div"
+
         popup_scroll_area = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, scrollable_element_xpath))
         )
@@ -108,20 +108,20 @@ def scroll_followers_popup(driver, scroll_attempts):
             time.sleep(random.uniform(2, 4)) # Allow content to load
 
             new_height = driver.execute_script("return arguments[0].scrollHeight;", popup_scroll_area)
-            
+
             if UNLIMITED_FOLLOWER_SCRAPE:
                 if new_height == last_height:
-                    print(f"    Reached end of scrollable content in UNLIMITED mode.")
+                    print(f"     Reached end of scrollable content in UNLIMITED mode.")
                     break # No new content loaded, stop scrolling
             else: # LIMIT mode
                 current_scroll_attempts += 1
                 if new_height == last_height or current_scroll_attempts >= scroll_attempts:
-                    print(f"    Reached end of scrollable content or max scrolls ({current_scroll_attempts}/{scroll_attempts}).")
+                    print(f"     Reached end of scrollable content or max scrolls ({current_scroll_attempts}/{scroll_attempts}).")
                     break # No new content loaded or max attempts reached
 
             last_height = new_height
-            print(f"    Scrolled popup. Current height: {new_height}. Last height: {last_height}. Attempts: {current_scroll_attempts}")
-        
+            print(f"     Scrolled popup. Current height: {new_height}. Last height: {last_height}. Attempts: {current_scroll_attempts}")
+
         print(f"✅ Finished scrolling popup. Total scrolls: {current_scroll_attempts}")
 
     except TimeoutException:
@@ -175,7 +175,7 @@ def close_popup(driver):
         try:
             # ORIGINAL WORKING XPATH for close button from your previous file
             close_button_xpath = "//div[@role='dialog']//button[contains(@class, '_ablz')] | //div[@role='dialog']//div[@role='button']/*[name()='svg' and @aria-label='Close']"
-            
+
             close_button = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.XPATH, close_button_xpath))
             )
@@ -204,7 +204,7 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
         config_from_main (dict): The loaded configuration dictionary from main.py.
         current_depth (int): The current recursion depth.
         scraped_usernames_set (set, optional): A set of all usernames already processed
-                                                across all recursion depths. Defaults to None.
+                                            across all recursion depths. Defaults to None.
     Returns:
         None: This function now handles live export internally and does not return a list.
     """
@@ -221,17 +221,17 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
         return # No return value, as we're live exporting
 
     print(f"\n✨ Entering recursion depth: {current_depth} for {len(seed_usernames)} seed(s).")
-    
+
     # This list will hold usernames that are relevant and will be used as seeds for the next recursion depth
-    next_level_seed_usernames = set() 
+    next_level_seed_usernames = set()
 
     for username in seed_usernames:
         # Check if this username has already been processed and exported in a prior depth
-        if username in scraped_usernames_set and current_depth > 0: 
+        if username in scraped_usernames_set and current_depth > 0:
             continue # Already processed, skip this user for expansion at this depth
 
         print(f"    Processing followers/following for @{username} (Depth: {current_depth})")
-        
+
         # Navigate to profile
         profile_url = f"https://www.instagram.com/{username}/"
         driver.get(profile_url)
@@ -242,13 +242,17 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
             WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//header//h2")))
             print(f"    Profile page for {username} loaded.")
         except TimeoutException:
-            print(f"    ❌ Timeout: Profile page for {username} did not load in time. Skipping.")
-            continue
+            # MODIFIED BEHAVIOR: Print warning, but do NOT 'continue'.
+            # This allows the code to proceed and try clicking the follower/following buttons.
+            print(f"    ⚠️ Warning: Profile page for {username} did not load in time. Attempting to proceed with button clicks anyway.")
         except Exception as e:
-            print(f"    ❌ Error loading profile page for {username}: {e}. Skipping.")
-            continue
+            # For more critical errors that prevent any interaction with the profile, skip the user.
+            print(f"    ❌ Critical Error loading profile page for {username}: {e}. Skipping this user for current depth's button clicks.")
+            continue # Skip to the next seed_username if there's a fundamental issue with the profile page.
 
         # --- STEP 2: Scrape Followers ---
+        # Introduce a flag to know if followers were successfully scraped.
+        followers_scraped_successfully = False
         try:
             print(f"    Attempting to scrape followers for {username}...")
             # --- NEW XPATH for Followers button ---
@@ -261,11 +265,11 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
                     EC.element_to_be_clickable((By.XPATH, followers_button_xpath))
                 )
             except TimeoutException:
-                print("        Trying fallback XPath for followers button...")
+                print("         Trying fallback XPath for followers button...")
                 followers_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, followers_button_xpath_fallback))
                 )
-            
+
             driver.execute_script("arguments[0].click();", followers_button)
             print(f"    Clicked followers button for {username}.")
             time.sleep(random.uniform(3, 6)) # Allow pop-up to load
@@ -273,17 +277,17 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
             # Adjust scroll_attempts based on UNLIMITED mode
             actual_scroll_attempts = float('inf') if UNLIMITED_FOLLOWER_SCRAPE else SCROLL_ATTEMPTS_MAX
             scroll_followers_popup(driver, scroll_attempts=actual_scroll_attempts) # Pass config not needed here as UNLIMITED_FOLLOWER_SCRAPE is global
-            
+
             followers_list = get_usernames_from_popup(driver)
             print(f"    Collected {len(followers_list)} followers for {username}.")
-            
+
             # Filter and live-export profiles
             processed_count_this_section = 0
             for follower_username in followers_list:
-                if processed_count_this_section >= FOLLOWER_LIMIT: 
+                if processed_count_this_section >= FOLLOWER_LIMIT:
                     print(f"    Reached FOLLOWER_LIMIT ({FOLLOWER_LIMIT}) for profiles from this section.")
                     break
-                
+
                 # Only process if not already scraped (from current or previous depths)
                 if follower_username not in scraped_usernames_set:
                     # light_scrape_and_filter_profile now returns the profile data dictionary
@@ -293,22 +297,26 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
                         process_and_live_export_profile_func(relevant_profile_data, config_from_main, scraped_usernames_set)
                         next_level_seed_usernames.add(follower_username) # Add to next recursion seeds
                         # scraped_usernames_set.add(follower_username) # This is handled by process_and_live_export_profile_func
-                    
-                    processed_count_this_section += 1 # Count every user *considered* for processing
 
-        except TimeoutException:
-            print(f"    ⚠️ Timeout: Followers button not found/clickable for {username}. XPaths might be outdated.")
+                    processed_count_this_section += 1 # Count every user *considered* for processing
+            followers_scraped_successfully = True # Set flag to True if this block runs without critical error
+
+        except TimeoutException as e:
+            print(f"    ⚠️ Timeout: Followers button not found/clickable or pop-up not visible for {username}. Error: {e}")
+        except NoSuchElementException as e:
+            print(f"    ⚠️ Element not found: Followers button or pop-up element for {username}. Error: {e}")
         except Exception as e:
             print(f"    ❌ Error scraping followers for {username}: {e}")
         finally:
-            close_popup(driver) # Always try to close the popup
-            time.sleep(random.uniform(DELAY_MIN, DELAY_MAX)) # Add delay after closing popup
+            if followers_scraped_successfully: # Only close if a popup likely opened
+                close_popup(driver)
+            time.sleep(random.uniform(DELAY_MIN, DELAY_MAX)) # Add delay after trying to close popup or moving on
+
 
         # --- STEP 2: Scrape Following ---
+        # The logic here is similar to followers, ensuring it runs independently.
+        following_scraped_successfully = False
         try:
-            # Check overall limit before scraping following of the current seed user
-            # No need to check FOLLOWER_LIMIT here, as it's handled per section and by process_and_live_export_profile_func
-            
             print(f"    Attempting to scrape following for {username}...")
             # --- NEW XPATH for Following button ---
             following_button_xpath = "//a[contains(@href, '/following/') and (./div/span/span[contains(text(), 'following') or contains(text(), 'Following')])]"
@@ -320,11 +328,11 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
                     EC.element_to_be_clickable((By.XPATH, following_button_xpath))
                 )
             except TimeoutException:
-                print("        Trying fallback XPath for following button...")
+                print("         Trying fallback XPath for following button...")
                 following_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, following_button_xpath_fallback))
                 )
-            
+
             driver.execute_script("arguments[0].click();", following_button)
             print(f"    Clicked following button for {username}.")
             time.sleep(random.uniform(3, 6)) # Allow pop-up to load
@@ -332,17 +340,17 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
             # Adjust scroll_attempts based on UNLIMITED mode
             actual_scroll_attempts = float('inf') if UNLIMITED_FOLLOWER_SCRAPE else SCROLL_ATTEMPTS_MAX
             scroll_followers_popup(driver, scroll_attempts=actual_scroll_attempts) # Pass config not needed here
-            
+
             following_list = get_usernames_from_popup(driver)
             print(f"    Collected {len(following_list)} following for {username}.")
-            
+
             # Filter and live-export profiles
             processed_count_this_section = 0
             for following_username in following_list:
-                if processed_count_this_section >= FOLLOWER_LIMIT: 
+                if processed_count_this_section >= FOLLOWER_LIMIT:
                     print(f"    Reached FOLLOWER_LIMIT ({FOLLOWER_LIMIT}) for profiles from this section.")
                     break
-                
+
                 # Only process if not already scraped (from current or previous depths)
                 if following_username not in scraped_usernames_set:
                     # light_scrape_and_filter_profile now returns the profile data dictionary
@@ -354,32 +362,35 @@ def scrape_followers_and_following(driver, seed_usernames, process_and_live_expo
                         # scraped_usernames_set.add(following_username) # This is handled by process_and_live_export_profile_func
 
                     processed_count_this_section += 1 # Count every user *considered* for processing
+            following_scraped_successfully = True # Set flag to True if this block runs without critical error
 
-        except TimeoutException:
-            print(f"    ⚠️ Timeout: Following button not found/clickable for {username}. XPaths might be outdated.")
+        except TimeoutException as e:
+            print(f"    ⚠️ Timeout: Following button not found/clickable or pop-up not visible for {username}. Error: {e}")
+        except NoSuchElementException as e:
+            print(f"    ⚠️ Element not found: Following button or pop-up element for {username}. Error: {e}")
         except Exception as e:
             print(f"    ❌ Error scraping following for {username}: {e}")
         finally:
-            close_popup(driver) # Always try to close the popup
-            time.sleep(random.uniform(DELAY_MIN, DELAY_MAX)) # Add delay after closing popup
+            if following_scraped_successfully: # Only close if a popup likely opened
+                close_popup(driver)
+            time.sleep(random.uniform(DELAY_MIN, DELAY_MAX)) # Add delay after trying to close popup or moving on
 
-        # print(f"    Total relevant profiles collected from {username} at depth {current_depth}: {len(new_relevant_usernames_at_this_depth)}") # Removed this line as it's not tracking a list anymore
 
     # Recursion: Scrape followers of newly found relevant profiles
     if next_level_seed_usernames and current_depth < RECURSION_DEPTH:
         print(f"\n    Recursion: Scraping followers of {len(next_level_seed_usernames)} newly found relevant profiles (Depth: {current_depth + 1})...")
-        
+
         # Pass the accumulated scraped_usernames_set to the next recursion level
         # This set ensures we don't re-process users across depths
         updated_scraped_usernames_set = scraped_usernames_set.union(next_level_seed_usernames)
 
         scrape_followers_and_following(
-            driver, 
+            driver,
             list(next_level_seed_usernames), # Use the newly found relevant users as seeds for next depth
             process_and_live_export_profile_func, # Pass the live export function
-            scrape_profiles_function, 
+            scrape_profiles_function,
             config_from_main, # Pass config from main
-            current_depth + 1, 
+            current_depth + 1,
             updated_scraped_usernames_set # Pass the updated set
         )
 
