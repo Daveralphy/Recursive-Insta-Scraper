@@ -5,7 +5,7 @@ import re
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException, StaleElementReferenceException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'scra
 from profile_scraper import scrape_profiles 
 
 
-# Load configuration
+# Load configuration (this file will still load its own config as per your request)
 try:
     with open("config.yaml", "r") as config_file:
         config = yaml.safe_load(config_file)
@@ -37,6 +37,7 @@ except FileNotFoundError:
         "keywords": ["celulares", "accesorios", "mayorista", "distribuidor", "smartphone", "movil", "telefone", "tecnologia"]
     }
 
+# Global variables read from config (as in your provided working file)
 DELAY_MIN = config["settings"]["delay_min"]
 DELAY_MAX = config["settings"]["delay_max"]
 FOLLOWER_LIMIT = config["settings"].get("follower_scrape_limit", 500)
@@ -49,14 +50,17 @@ LIGHT_SCRAPE_KEYWORDS = [kw.lower() for kw in config.get("keywords", ["celulares
 
 
 # This function now performs the light scrape for filtering by calling scrape_profiles
-# and extracting the relevant fields.
-def light_scrape_and_filter_profile(driver, username):
+# and extracts the relevant fields. It now returns the full profile_data if relevant.
+def light_scrape_and_filter_profile(driver, username, config_for_keywords): # Added config_for_keywords
     """
     Performs a light scrape to check for keywords in the bio/full name/external link.
-    Returns the username if relevant, None otherwise.
+    Returns the profile_data dictionary if relevant, None otherwise.
     This uses the 'scrape_profiles' function from profile_scraper for the light scrape,
     but only processes a subset of its output for relevance.
     """
+    # Use keywords from the passed config_for_keywords
+    current_light_scrape_keywords = [kw.lower() for kw in config_for_keywords.get("keywords", [])]
+
     # Use scrape_profiles to get the full profile data (which includes bio, full name, external link)
     # This is effectively a "light" scrape for filtering purposes here.
     profile_data_list = scrape_profiles(driver, [username])
@@ -73,9 +77,9 @@ def light_scrape_and_filter_profile(driver, username):
     text_to_filter = f"{bio} {full_name} {external_link}"
 
     # Check if any of the defined keywords are present
-    if any(keyword in text_to_filter for keyword in LIGHT_SCRAPE_KEYWORDS):
+    if any(keyword in text_to_filter for keyword in current_light_scrape_keywords):
         print(f"        '{username}' is relevant (matched keyword).")
-        return username
+        return profile_data # Return the full profile data dictionary
     else:
         # print(f"        '{username}' is NOT relevant (no keyword match).") # Uncomment for verbose filtering
         return None
@@ -185,11 +189,24 @@ def close_popup(driver):
         time.sleep(random.uniform(2, 4)) # Give time for popup to disappear
 
 
-def scrape_followers_and_following(driver, seed_usernames, scrape_profiles_function, current_depth=0, scraped_usernames_set=None):
+# Modified signature to accept process_and_live_export_profile_func and config
+def scrape_followers_and_following(driver, seed_usernames, process_and_live_export_profile_func, scrape_profiles_function, config_from_main, current_depth=0, scraped_usernames_set=None):
     """
     Scrapes followers and following lists for seed usernames (STEP 2),
     filters profiles based on keywords in their bios using a light scrape (STEP 3),
-    and returns relevant usernames. Includes recursion.
+    and live-exports relevant profiles. Includes recursion.
+
+    Args:
+        driver (WebDriver): The Selenium WebDriver instance.
+        seed_usernames (list): List of usernames to expand from at this depth.
+        process_and_live_export_profile_func (function): The function to call for live export.
+        scrape_profiles_function (function): The function used to scrape full profile data.
+        config_from_main (dict): The loaded configuration dictionary from main.py.
+        current_depth (int): The current recursion depth.
+        scraped_usernames_set (set, optional): A set of all usernames already processed
+                                                across all recursion depths. Defaults to None.
+    Returns:
+        None: This function now handles live export internally and does not return a list.
     """
     if scraped_usernames_set is None:
         scraped_usernames_set = set() # Initialize an empty set if not provided
@@ -197,14 +214,22 @@ def scrape_followers_and_following(driver, seed_usernames, scrape_profiles_funct
     # Add current seed usernames to the processed set to avoid immediate re-processing
     scraped_usernames_set.update(seed_usernames)
 
+    # RECURSION_DEPTH is a global variable in this file, read from its own config load.
+    # This aligns with the user's provided 'working' file structure.
     if current_depth > RECURSION_DEPTH:
         print(f"Max recursion depth ({RECURSION_DEPTH}) reached. Stopping.")
-        return []
+        return # No return value, as we're live exporting
 
     print(f"\n✨ Entering recursion depth: {current_depth} for {len(seed_usernames)} seed(s).")
-    new_relevant_usernames_at_this_depth = [] # Stores relevant usernames found at this depth
+    
+    # This list will hold usernames that are relevant and will be used as seeds for the next recursion depth
+    next_level_seed_usernames = set() 
 
     for username in seed_usernames:
+        # Check if this username has already been processed and exported in a prior depth
+        if username in scraped_usernames_set and current_depth > 0: 
+            continue # Already processed, skip this user for expansion at this depth
+
         print(f"    Processing followers/following for @{username} (Depth: {current_depth})")
         
         # Navigate to profile
@@ -227,10 +252,7 @@ def scrape_followers_and_following(driver, seed_usernames, scrape_profiles_funct
         try:
             print(f"    Attempting to scrape followers for {username}...")
             # --- NEW XPATH for Followers button ---
-            # Try finding the link that contains both the specific href AND text
             followers_button_xpath = "//a[contains(@href, '/followers/') and (./div/span/span[contains(text(), 'followers') or contains(text(), 'Followers')])]"
-            
-            # Fallback if the above doesn't work (sometimes 'followers' text is just directly in the span or a div)
             followers_button_xpath_fallback = "//a[contains(@href, '/followers/') and (@role='link' or contains(., 'followers') or contains(., 'Followers'))]"
 
             followers_button = None
@@ -250,23 +272,29 @@ def scrape_followers_and_following(driver, seed_usernames, scrape_profiles_funct
 
             # Adjust scroll_attempts based on UNLIMITED mode
             actual_scroll_attempts = float('inf') if UNLIMITED_FOLLOWER_SCRAPE else SCROLL_ATTEMPTS_MAX
-            scroll_followers_popup(driver, scroll_attempts=actual_scroll_attempts)
+            scroll_followers_popup(driver, scroll_attempts=actual_scroll_attempts) # Pass config not needed here as UNLIMITED_FOLLOWER_SCRAPE is global
             
             followers_list = get_usernames_from_popup(driver)
             print(f"    Collected {len(followers_list)} followers for {username}.")
             
-            # Filter and add to new_relevant_usernames_at_this_depth
+            # Filter and live-export profiles
+            processed_count_this_section = 0
             for follower_username in followers_list:
-                if len(new_relevant_usernames_at_this_depth) >= FOLLOWER_LIMIT: 
-                    print(f"    Reached FOLLOWER_LIMIT ({FOLLOWER_LIMIT}) for relevant profiles at this depth.")
+                if processed_count_this_section >= FOLLOWER_LIMIT: 
+                    print(f"    Reached FOLLOWER_LIMIT ({FOLLOWER_LIMIT}) for profiles from this section.")
                     break
                 
                 # Only process if not already scraped (from current or previous depths)
                 if follower_username not in scraped_usernames_set:
-                    relevant_username = light_scrape_and_filter_profile(driver, follower_username)
-                    if relevant_username:
-                        new_relevant_usernames_at_this_depth.append(relevant_username)
-                        scraped_usernames_set.add(relevant_username) # Mark as processed for full scrape
+                    # light_scrape_and_filter_profile now returns the profile data dictionary
+                    relevant_profile_data = light_scrape_and_filter_profile(driver, follower_username, config_from_main) # Pass config_from_main for keywords
+                    if relevant_profile_data:
+                        # Perform live export for this relevant profile
+                        process_and_live_export_profile_func(relevant_profile_data, config_from_main, scraped_usernames_set)
+                        next_level_seed_usernames.add(follower_username) # Add to next recursion seeds
+                        # scraped_usernames_set.add(follower_username) # This is handled by process_and_live_export_profile_func
+                    
+                    processed_count_this_section += 1 # Count every user *considered* for processing
 
         except TimeoutException:
             print(f"    ⚠️ Timeout: Followers button not found/clickable for {username}. XPaths might be outdated.")
@@ -279,16 +307,11 @@ def scrape_followers_and_following(driver, seed_usernames, scrape_profiles_funct
         # --- STEP 2: Scrape Following ---
         try:
             # Check overall limit before scraping following of the current seed user
-            if len(new_relevant_usernames_at_this_depth) >= FOLLOWER_LIMIT:
-                print(f"Limit of {FOLLOWER_LIMIT} relevant profiles reached. Skipping following for {username}.")
-                break # Break out of the inner loop (current seed username)
-
+            # No need to check FOLLOWER_LIMIT here, as it's handled per section and by process_and_live_export_profile_func
+            
             print(f"    Attempting to scrape following for {username}...")
             # --- NEW XPATH for Following button ---
-            # Try finding the link that contains both the specific href AND text
             following_button_xpath = "//a[contains(@href, '/following/') and (./div/span/span[contains(text(), 'following') or contains(text(), 'Following')])]"
-            
-            # Fallback if the above doesn't work
             following_button_xpath_fallback = "//a[contains(@href, '/following/') and (@role='link' or contains(., 'following') or contains(., 'Following'))]"
 
             following_button = None
@@ -308,23 +331,29 @@ def scrape_followers_and_following(driver, seed_usernames, scrape_profiles_funct
 
             # Adjust scroll_attempts based on UNLIMITED mode
             actual_scroll_attempts = float('inf') if UNLIMITED_FOLLOWER_SCRAPE else SCROLL_ATTEMPTS_MAX
-            scroll_followers_popup(driver, scroll_attempts=actual_scroll_attempts)
+            scroll_followers_popup(driver, scroll_attempts=actual_scroll_attempts) # Pass config not needed here
             
             following_list = get_usernames_from_popup(driver)
             print(f"    Collected {len(following_list)} following for {username}.")
             
-            # Filter and add to new_relevant_usernames_at_this_depth
+            # Filter and live-export profiles
+            processed_count_this_section = 0
             for following_username in following_list:
-                if len(new_relevant_usernames_at_this_depth) >= FOLLOWER_LIMIT: 
-                    print(f"    Reached FOLLOWER_LIMIT ({FOLLOWER_LIMIT}) for relevant profiles at this depth.")
+                if processed_count_this_section >= FOLLOWER_LIMIT: 
+                    print(f"    Reached FOLLOWER_LIMIT ({FOLLOWER_LIMIT}) for profiles from this section.")
                     break
                 
                 # Only process if not already scraped (from current or previous depths)
                 if following_username not in scraped_usernames_set:
-                    relevant_username = light_scrape_and_filter_profile(driver, following_username)
-                    if relevant_username:
-                        new_relevant_usernames_at_this_depth.append(relevant_username)
-                        scraped_usernames_set.add(relevant_username) # Mark as processed for full scrape
+                    # light_scrape_and_filter_profile now returns the profile data dictionary
+                    relevant_profile_data = light_scrape_and_filter_profile(driver, following_username, config_from_main) # Pass config_from_main
+                    if relevant_profile_data:
+                        # Perform live export for this relevant profile
+                        process_and_live_export_profile_func(relevant_profile_data, config_from_main, scraped_usernames_set)
+                        next_level_seed_usernames.add(following_username) # Add to next recursion seeds
+                        # scraped_usernames_set.add(following_username) # This is handled by process_and_live_export_profile_func
+
+                    processed_count_this_section += 1 # Count every user *considered* for processing
 
         except TimeoutException:
             print(f"    ⚠️ Timeout: Following button not found/clickable for {username}. XPaths might be outdated.")
@@ -334,21 +363,24 @@ def scrape_followers_and_following(driver, seed_usernames, scrape_profiles_funct
             close_popup(driver) # Always try to close the popup
             time.sleep(random.uniform(DELAY_MIN, DELAY_MAX)) # Add delay after closing popup
 
-        print(f"    Total relevant profiles collected from {username} at depth {current_depth}: {len(new_relevant_usernames_at_this_depth)}")
+        # print(f"    Total relevant profiles collected from {username} at depth {current_depth}: {len(new_relevant_usernames_at_this_depth)}") # Removed this line as it's not tracking a list anymore
 
     # Recursion: Scrape followers of newly found relevant profiles
-    if new_relevant_usernames_at_this_depth and current_depth < RECURSION_DEPTH:
-        print(f"\n    Recursion: Scraping followers of {len(new_relevant_usernames_at_this_depth)} newly found relevant profiles (Depth: {current_depth + 1})...")
+    if next_level_seed_usernames and current_depth < RECURSION_DEPTH:
+        print(f"\n    Recursion: Scraping followers of {len(next_level_seed_usernames)} newly found relevant profiles (Depth: {current_depth + 1})...")
+        
         # Pass the accumulated scraped_usernames_set to the next recursion level
-        recursive_relevant = scrape_followers_and_following(
-            driver, 
-            new_relevant_usernames_at_this_depth, # Use the newly found relevant users as seeds for next depth
-            scrape_profiles_function, 
-            current_depth + 1, 
-            scraped_usernames_set # Pass the updated set
-        )
-        new_relevant_usernames_at_this_depth.extend(recursive_relevant)
-        # Ensure duplicates are removed after extending from recursion
-        new_relevant_usernames_at_this_depth = list(set(new_relevant_usernames_at_this_depth))
+        # This set ensures we don't re-process users across depths
+        updated_scraped_usernames_set = scraped_usernames_set.union(next_level_seed_usernames)
 
-    return new_relevant_usernames_at_this_depth # Returns list of filtered usernames only
+        scrape_followers_and_following(
+            driver, 
+            list(next_level_seed_usernames), # Use the newly found relevant users as seeds for next depth
+            process_and_live_export_profile_func, # Pass the live export function
+            scrape_profiles_function, 
+            config_from_main, # Pass config from main
+            current_depth + 1, 
+            updated_scraped_usernames_set # Pass the updated set
+        )
+
+    return # This function now handles live export internally and does not return a list.

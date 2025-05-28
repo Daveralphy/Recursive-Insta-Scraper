@@ -1,25 +1,37 @@
 import os
 import pandas as pd
-# import gspread # Commented out
-# from oauth2client.service_account import ServiceAccountCredentials # Commented out
-# from airtable import Airtable # Commented out
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from airtable import Airtable
 import time
 from dotenv import load_dotenv
+import openpyxl # NEW: Import openpyxl for Excel appending
 
 # Load environment variables (for Airtable and Google Sheets credentials)
 dotenv_path = os.path.join(os.getcwd(), ".env")
 load_dotenv(dotenv_path)
 
-def export_data(df, config):
+# This set will keep track of which usernames have already been exported
+# to prevent duplicates when using append mode.
+# Note: In a multi-process/multi-thread scenario, this would need to be shared.
+# For a single-threaded script, it's fine here, but conceptually might be better in main.py
+# and passed around or managed by a higher-level object.
+# However, for simple append, managing headers per file is more critical.
+
+def export_data_live(new_profiles_data_list, config):
     """
-    Exports the DataFrame to various formats based on config settings.
+    Exports a list of new profile data dictionaries to various formats,
+    appending to existing files/databases.
 
     Args:
-        df (pd.DataFrame): The DataFrame containing the scraped and classified data.
+        new_profiles_data_list (list): A list of dictionaries, each representing a classified profile.
         config (dict): The loaded configuration dictionary from config.yaml.
     """
-    print("\n--- Exporting Final Data (Step 6) ---")
+    if not new_profiles_data_list:
+        return # Do nothing if no new data to export
 
+    df_to_export = pd.DataFrame(new_profiles_data_list)
+    
     export_settings = config.get("export_settings", {})
     enabled_formats = export_settings.get("enabled_formats", ["csv"])
     output_dir = "data"
@@ -27,26 +39,53 @@ def export_data(df, config):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    print(f"\n--- Live Exporting {len(new_profiles_data_list)} new data points ---")
+
     # --- CSV Export ---
     if "csv" in enabled_formats:
         try:
             csv_filename = export_settings.get("csv_filename", "instagram_leads.csv")
             output_path = os.path.join(output_dir, csv_filename)
-            df.to_csv(output_path, index=False)
-            print(f"✅ Data successfully exported to CSV: {output_path}")
+            
+            # Check if file exists to determine if header is needed
+            file_exists = os.path.exists(output_path)
+            
+            df_to_export.to_csv(output_path, mode='a', header=not file_exists, index=False)
+            print(f"✅ Appended data to CSV: {output_path}")
         except Exception as e:
-            print(f"❌ Error exporting to CSV: {e}")
+            print(f"❌ Error appending to CSV: {e}")
 
     # --- Excel Export ---
-    # This remains active as it does not require external credentials beyond openpyxl
+    # This section is enabled by default as it only requires openpyxl.
+    # To enable Excel export:
+    # 1. Ensure 'openpyxl' is installed (`pip install openpyxl`).
+    # 2. Ensure 'excel' is enabled in 'enabled_formats' in config.yaml.
     if "excel" in enabled_formats:
         try:
             excel_filename = export_settings.get("excel_filename", "instagram_leads.xlsx")
             output_path = os.path.join(output_dir, excel_filename)
-            df.to_excel(output_path, index=False)
-            print(f"✅ Data successfully exported to Excel: {output_path}")
+            
+            wb = None
+            if not os.path.exists(output_path):
+                # Create a new workbook if file doesn't exist and write header
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.title = "Instagram Leads" # Set sheet title
+                ws.append(df_to_export.columns.tolist()) # Write header row
+            else:
+                # Load existing workbook
+                wb = openpyxl.load_workbook(output_path)
+                ws = wb.active # Get the active sheet
+
+            # Append each row of the new data
+            for r_idx, row in df_to_export.iterrows():
+                ws.append(row.tolist())
+            
+            wb.save(output_path)
+            print(f"✅ Appended data to Excel: {output_path}")
         except Exception as e:
-            print(f"❌ Error exporting to Excel: {e}")
+            print(f"❌ Error appending to Excel: {e}")
+
 
     # --- Airtable Export ---
     # This section is commented out by default.
@@ -57,6 +96,7 @@ def export_data(df, config):
     # 4. Add your AIRTABLE_API_KEY and AIRTABLE_BASE_ID to your .env file.
     if "airtable" in enabled_formats:
         print("ℹ️ Airtable export code is commented out in exporter.py. Please uncomment it to enable this feature.")
+        # from airtable import Airtable # Moved import here to keep main import section clean if uncommented
         # # Get credentials from environment variables
         # api_key = os.getenv("AIRTABLE_API_KEY")
         # base_id = os.getenv("AIRTABLE_BASE_ID")
@@ -69,37 +109,22 @@ def export_data(df, config):
         #     print("❌ Airtable export skipped: Missing AIRTABLE_API_KEY, AIRTABLE_BASE_ID in .env or Table Name in config.yaml. Please check your setup.")
         # else:
         #     try:
-        #         print(f"🔄 Attempting to export to Airtable table: '{table_name}'...")
         #         airtable = Airtable(base_id, api_key)
                 
-        #         # Option 1: Delete existing records and re-upload (simpler for fresh export)
-        #         existing_records = airtable.get_all()
-        #         if existing_records:
-        #             print(f"    Deleting {len(existing_records)} existing records in Airtable...")
-        #             # Batch delete for efficiency and to respect rate limits
-        #             record_ids_to_delete = [record['id'] for record in existing_records]
-        #             delete_batch_size = 10 # Airtable's batch delete limit
-        #             for i in range(0, len(record_ids_to_delete), delete_batch_size):
-        #                 batch_ids = record_ids_to_delete[i:i + delete_batch_size]
-        #                 airtable.batch_delete(batch_ids)
-        #                 print(f"    Deleted batch {int(i/delete_batch_size) + 1}/{(len(record_ids_to_delete) + delete_batch_size - 1) // delete_batch_size} from Airtable.")
-        #                 time.sleep(0.1) # Small delay to avoid hitting rate limits too hard
-
         #         # Prepare records for Airtable
-        #         records_to_create = df.to_dict(orient='records')
+        #         records_to_create = df_to_export.to_dict(orient='records')
                 
         #         # Airtable API has a limit of 10 records per batch for creation
         #         create_batch_size = 10
         #         for i in range(0, len(records_to_create), create_batch_size):
         #             batch = records_to_create[i:i + create_batch_size]
         #             airtable.batch_create(batch)
-        #             print(f"    Uploaded batch {int(i/create_batch_size) + 1}/{(len(records_to_create) + create_batch_size - 1) // create_batch_size} to Airtable.")
         #             time.sleep(0.3) # Small delay to respect rate limits
 
-        #         print(f"✅ Data successfully exported to Airtable table: '{table_name}'")
+        #         print(f"✅ Appended data to Airtable table: '{table_name}'")
 
         #     except Exception as e:
-        #         print(f"❌ Error exporting to Airtable: {e}")
+        #         print(f"❌ Error appending to Airtable: {e}")
         #         print("    Please ensure your Airtable API Key, Base ID in .env and Table Name in config.yaml are correct.")
         #         print("    Also, check if the column names in your DataFrame match those in Airtable.")
 
@@ -114,6 +139,8 @@ def export_data(df, config):
     #    your GOOGLE_SHEETS_SPREADSHEET_ID to your .env file.
     if "google_sheets" in enabled_formats:
         print("ℹ️ Google Sheets export code is commented out in exporter.py. Please uncomment it to enable this feature.")
+        # import gspread # Moved import here to keep main import section clean if uncommented
+        # from oauth2client.service_account import ServiceAccountCredentials # Moved import here
         # gsheets_config = export_settings.get("google_sheets", {})
         # credentials_file = gsheets_config.get("credentials_file")
         
@@ -128,7 +155,6 @@ def export_data(df, config):
         #     print("    Refer to the setup instructions for Google Sheets API.")
         # else:
         #     try:
-        #         print(f"🔄 Attempting to export to Google Sheet: '{sheet_name}'...")
         #         # Authenticate
         #         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         #         creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_file, scope)
@@ -138,15 +164,17 @@ def export_data(df, config):
         #         spreadsheet = client.open_by_id(spreadsheet_id)
         #         worksheet = spreadsheet.worksheet(sheet_name)
 
-        #         # Clear existing data
-        #         worksheet.clear()
+        #         # Check if sheet is empty to write header
+        #         current_values = worksheet.get_all_values()
+        #         if not current_values: # Sheet is empty, write header first
+        #             worksheet.append_row(df_to_export.columns.tolist())
 
-        #         # Update with headers and data
-        #         data_to_upload = [df.columns.values.tolist()] + df.values.tolist()
+        #         # Append data rows
+        #         for r_idx, row in df_to_export.iterrows():
+        #             worksheet.append_row(row.tolist())
+        #             time.sleep(0.1) # Small delay for API rate limits
                 
-        #         worksheet.update(data_to_upload)
-                
-        #         print(f"✅ Data successfully exported to Google Sheet: '{spreadsheet.title}' (Worksheet: '{sheet_name}')")
+        #         print(f"✅ Appended data to Google Sheet: '{spreadsheet.title}' (Worksheet: '{sheet_name}')")
 
         #     except FileNotFoundError:
         #         print(f"❌ Error: Google Sheets credentials file not found at '{credentials_file}'. Please check the path.")
@@ -155,5 +183,5 @@ def export_data(df, config):
         #     except gspread.exceptions.WorksheetNotFound:
         #         print(f"❌ Error: Worksheet named '{sheet_name}' not found in the spreadsheet. Check the sheet name.")
         #     except Exception as e:
-        #         print(f"❌ Error exporting to Google Sheets: {e}")
+        #         print(f"❌ Error appending to Google Sheets: {e}")
         #         print("    Please ensure your service account has Editor access to the Google Sheet and check all IDs/paths.")

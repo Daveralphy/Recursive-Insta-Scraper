@@ -1,5 +1,3 @@
-# main.py
-
 import os
 import time
 import random
@@ -22,7 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'scra
 from scrapers.profile_scraper import scrape_profiles
 from scrapers.followers_scraper import scrape_followers_and_following
 from scrapers.classifier import classify_profile
-from exporter import export_data
+from exporter import export_data_live
 
 # Load environment variables (credentials)
 dotenv_path = os.path.join(os.getcwd(), ".env")
@@ -42,7 +40,6 @@ except FileNotFoundError:
 VISIBLE_BROWSER = config["settings"]["visible_browser"]
 SEED_USERNAMES = config["seed_usernames"]
 
-# --- NEW: Get user agents directly from config.yaml ---
 user_agents_list = config.get('user_agents')
 
 if not user_agents_list:
@@ -182,92 +179,83 @@ except Exception as e:
     driver.quit()
     exit()
 
-# --- Start comprehensive scraping process ---
-final_scraped_data = []
-all_processed_usernames = set()
+## **Start Comprehensive Scraping Process with Live Export**
+# Use a set to track usernames that have been processed and exported
+# This prevents re-processing and re-exporting the same profile multiple times.
+processed_usernames_for_export = set()
 
-# Step 1: Input Seed Instagram Usernames
-print("\n🚀 Step 1 & 4 (Partial): Scraping initial seed usernames for full profile data...")
+# Helper function to classify and live export a single profile
+def process_and_live_export_profile(profile_data_item, config, processed_usernames_set):
+    """
+    Classifies a single profile dictionary and immediately sends it to the live exporter.
+    Prevents re-processing and re-exporting the same username if already handled.
+
+    Args:
+        profile_data_item (dict): A dictionary containing scraped profile data.
+        config (dict): The loaded configuration dictionary.
+        processed_usernames_set (set): A set to track usernames already processed and exported.
+    """
+    username = profile_data_item.get("Username")
+    if not username:
+        print("⚠️ Skipping profile with no Username for live export.")
+        return
+
+    if username in processed_usernames_set:
+        # print(f"    Skipping already processed and exported user: {username}") # Uncomment for debugging
+        return
+
+    print(f"    Classifying and preparing for live export: {username}...")
+    
+    # Classify the profile. This function modifies `profile_data_item` in place,
+    # adding 'Classification', cleaning 'Bio', and extracting other details.
+    classify_profile(profile_data_item) 
+    
+    # Export this single classified profile.
+    # export_data_live expects a list of dictionaries, so we pass a list with one item.
+    export_data_live([profile_data_item], config) 
+
+    # Add username to the set of processed profiles to avoid future duplicates
+    processed_usernames_set.add(username)
+
+
+# --- Step 1: Process Seed Instagram Usernames ---
+print("\n🚀 Step 1: Scraping and live exporting initial seed usernames...")
 for username in SEED_USERNAMES:
-    if username not in all_processed_usernames:
+    if username not in processed_usernames_for_export: # Check before even scraping if already processed
         print(f"    Scraping full data for seed profile: {username}...")
         profile_data_list = scrape_profiles(driver, [username])
 
         if profile_data_list:
-            final_scraped_data.extend(profile_data_list)
             for profile in profile_data_list:
-                all_processed_usernames.add(profile.get("Username"))
+                process_and_live_export_profile(profile, config, processed_usernames_for_export)
         else:
             print(f"    No full profile data collected for seed {username}.")
         
+        # Introduce a delay to avoid bot detection
         time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))
 
 
-# Step 2 & 3: Expand search for new relevant profiles
-print("\n🚀 Step 2 & 3: Expanding search for new relevant profiles using followers/following and filtering...")
-relevant_usernames_from_expansion = scrape_followers_and_following(driver, list(all_processed_usernames), scrape_profiles)
-print(f"📂 Total new relevant usernames found from expansion and filtering: {len(relevant_usernames_from_expansion)}")
+# --- Step 2 & 3: Expand search for new relevant profiles with live export ---
+print("\n🚀 Step 2 & 3: Expanding search for new relevant profiles using followers/following and filtering (Live Export)...")
 
-usernames_for_full_scrape_after_expansion = [
-    username for username in relevant_usernames_from_expansion 
-    if username not in all_processed_usernames
-]
+# scrape_followers_and_following now handles the full scrape and live export internally
+scrape_followers_and_following(
+    driver,
+    list(processed_usernames_for_export), # Start expansion from already processed (seed) users
+    process_and_live_export_profile, # Pass the live export function
+    scrape_profiles, # Pass the full profile scraper function
+    config, # Pass config
+    current_depth=0, # Start recursion depth at 0
+    scraped_usernames_set=processed_usernames_for_export # Pass the master set for tracking
+)
 
-print(f"\nTotal unique new usernames to perform full scrape on after initial expansion: {len(usernames_for_full_scrape_after_expansion)}")
-
-
-# Step 4: Full Profile Scrape (Continued)
-print("\n🚀 Step 4 (Continued): Performing full profile scrape for newly found relevant accounts...")
-for username in usernames_for_full_scrape_after_expansion:
-    print(f"    Collecting full data for new relevant profile: {username}...")
-    profile_data_list = scrape_profiles(driver, [username])
-
-    if profile_data_list:
-        final_scraped_data.extend(profile_data_list)
-        for profile in profile_data_list:
-            all_processed_usernames.add(profile.get("Username"))
-    else:
-        print(f"    No full profile data collected for new relevant {username}.")
-
-    time.sleep(random.uniform(config["settings"]["delay_min"], config["settings"]["delay_max"]))
+# No need for Step 4 explicitly in main.py, as it's now handled by followers_scraper.py itself.
 
 # Close browser session after all scraping is done
 driver.quit()
-print("\n✅ Scraping process completed successfully!")
+print("\n✅ Scraping and live export process completed successfully!")
 
-# --- Data Processing and Saving ---
+# The large final data processing and export block is no longer needed here
+# because data is exported as it's processed live.
 
-# Step 5: AI Classification
-print("\n🚀 Step 5: Classifying all collected profiles...")
-for profile in final_scraped_data:
-    classification = classify_profile(profile)
-    profile["Classification"] = classification
-
-# Step 6: Save Results using the new exporter module
-print("\n🚀 Step 6: Preparing and saving final data using exporter...")
-
-df_final = pd.DataFrame(final_scraped_data)
-
-if not df_final.empty:
-    df_final.drop_duplicates(subset=['Username'], inplace=True, keep='first')
-    # REMOVED: df_final.set_index('Username', inplace=True) # <--- REMOVE THIS LINE!
-
-# Ensure all required columns exist and order them correctly
-required_columns = [
-    "Username", # Keep this here!
-    "Full Name", "Follower Count", "Following Count",
-    "Bio", "WhatsApp Number", "WhatsApp Group Link", "Region", "External Link",
-    "Profile URL", "Classification"
-]
-
-for col in required_columns:
-    if col not in df_final.columns:
-        df_final[col] = '' 
-
-# Reorder columns. No need for reset_index(drop=True) because Username was never set as index to be dropped.
-df_final = df_final[required_columns] # <--- Changed this line
-
-# Call the export function
-export_data(df_final, config)
-
-print("\n✅ All export operations attempted!")
+print(f"Summary: Total unique profiles processed and exported: {len(processed_usernames_for_export)}")
