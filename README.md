@@ -58,8 +58,8 @@ OPENAI_API_KEY="your_openai_api_key_here"
 # Optional: Google Sheets Credentials (uncomment and fill if using Google Sheets export)
 # GOOGLE_SHEETS_SPREADSHEET_ID="your_google_sheet_id_here"
 ```
+Important: Keep your .env file secure and do not share it or commit it to version control.
 
-'Important: Keep your .env file secure and do not share it or commit it to version control.'
 5. Configure your settings in `config.yaml`.
 ---
 
