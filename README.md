@@ -60,12 +60,12 @@ OPENAI_API_KEY="your_openai_api_key_here"
 ```
 Important: Keep your .env file secure and do not share it or commit it to version control.
 
-5. Configure your settings in `config.yaml`.
+7. Configure your settings in `config.yaml`.
 ---
 
 ## Usage
 
-1. Run the main script:
+Run the main script:
 `python main.py`
 
 Use the config file to adjust scraping limits, delays, and recursion toggle.
