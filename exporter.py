@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from airtable import Airtable
+# from airtable import Airtable
 import time
 from dotenv import load_dotenv
 import openpyxl # NEW: Import openpyxl for Excel appending
