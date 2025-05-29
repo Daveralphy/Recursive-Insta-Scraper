@@ -64,6 +64,8 @@ try:
     options.add_argument(f"user-agent={random.choice(user_agents_list)}")
     options.add_argument("--window-size=1920,1080") # Ensure consistent window size
 
+    driver_path = ChromeDriverManager().install()
+    print(f"Using ChromeDriver from: {driver_path}")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
 
