@@ -1,13 +1,13 @@
 # config.yaml
 
 settings:
-  delay_min: 5
-  delay_max: 10
-  follower_scrape_limit: 5
-  unlimited_follower_scrape: False
-  scroll_attempts_max: 20
-  recursion_depth: 1
-  visible_browser: false # Set to False for headless (invisible) browser operation
+  delay_min: 3 # Minimum delay between actions in seconds
+  delay_max: 5 # Random delay between actions in seconds
+  follower_scrape_limit: 500 # Maximum number of followers to scrape per user
+  unlimited_follower_scrape: True # Set to True to scrape all followers without limit
+  scroll_attempts_max: 10 # Maximum number of scroll attempts to load more followers
+  recursion_depth: 3 # How many levels deep to scrape followers of followers
+  visible_browser: true # Set to False for headless (invisible) browser operation
 
 keywords:
   - "celulares"
@@ -19,20 +19,39 @@ keywords:
   - "telefone"
   - "tecnologia"
   - "gadgets"
-  - "electronics"
   - "smartphones"
   - "mobile"
-  - "tech"
   - "gadget"
   - "mobile shop"
   - "mobile store"
+  - "tech"
+  - "mobile"
+  - "tienda movil" # <--- Added a common Spanish variation
+  - "celular" # <--- Added singular for completeness
+  - "telefonos" # <--- Added plural for completeness
+  - "electronica" # <--- More general tech term
+  - "ventas" # <--- If looking for sales accounts
+  - "distribuidora" # <--- Feminine form of distributor
+  - "accesorios moviles" # <--- More specific mobile accessories
+  - "venta de celulares" # <--- Common phrase
 
-  
+
 # REQUIRED: List of Instagram usernames to start scraping from.
 
 seed_usernames:
-  - "quality_gadgets_hub"
-  - "mobile_shop_latam"
+    - "longlivemari223"
+  # - "iphoneshop_co"
+  # - "smartshop_ec1"
+  # - "alo.caracas"
+  # - "4allfix"
+  # - "congressbrazilmobile"
+  # - "multicell_ec"
+  # - "jovi.brasil"
+  # - "joog.tech"
+  # - "atacarejo_dos_acessorios"
+  # - "emerson_vianna__"
+  # - "pal.matech"
+  # - "coelhocellcabofrio"
 
 # REQUIRED: List of user agents for the browser.
 # The scraper will randomly pick one from this list for each session.
