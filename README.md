@@ -1,24 +1,24 @@
-# LATAM Instagram WhatsApp Scraper Bot
+# Instagram Scraper Bot
 
-Python-based scraper for discovering Latin American cellphone resellers, distributors, retailers, and repair shops via Instagram. The bot extracts WhatsApp contact info and classifies profiles using AI filtering or keyword logic.
+Python-based scraper for discovering resellers, distributors, retailers, and repair shops via Instagram. The bot extracts WhatsApp contact info and classifies profiles using AI filtering or keyword logic.
 
 ---
 
 ## 🚀 Features
 
-- Scrapes followers/following from seed accounts  
-- Light scrape with AI or keyword-based filtering (Spanish/Portuguese focus)  
-- Full scrape for relevant bios only  
-- Detects WhatsApp numbers and group links via regex  
-- Classifies accounts: Retailer, Reseller, Distributor, Repair Shop  
-- Supports proxy rotation, rate limiting, and recursion  
-- Outputs to clean CSV / Airtable / Google Sheets  
+- Scrapes followers/following from seed accounts
+- Light scrape with AI or keyword-based filtering 
+- Full scrape for relevant bios only
+- Detects WhatsApp numbers and group links via regex
+- Classifies accounts: Retailer, Reseller, Distributor, Repair Shop
+- Supports proxy rotation, rate limiting, and recursion
+- Outputs to clean CSV / Airtable / Google Sheets
 
 ---
 
 ## 📁 Project Structure
 
-- latam-instagram-whatsapp-scraper/
+- Recursive Insta-Scraper/
   - data/ Directory where all exported data files (CSV, Excel) will be saved.
   - scrapers/ - Contains the core Python modules responsible for various scraping and data processing tasks.
     - classifier.py - Handles cleaning scraped profile bios, extracting contact information (like WhatsApp numbers and group links), and classifying profiles based on business type (e.g., Retailer, Distributor).
@@ -35,7 +35,7 @@ Python-based scraper for discovering Latin American cellphone resellers, distrib
 ## Setup Instructions
 
 1. Clone the repository:
-`git clone https://github.com/Daveralphy/latam-instagram-whatsapp-scraper.git`
+`git clone https://github.com/Daveralphy/Recursive Insta-Scraper.git`
 2. Navigate to the project directory:
 `cd latam-instagram-whatsapp-scraper`
 3. Create and activate a virtual environment:
