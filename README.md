@@ -37,7 +37,7 @@ Python-based scraper for discovering resellers, distributors, retailers, and rep
 1. Clone the repository:
 `git clone https://github.com/Daveralphy/Recursive Insta-Scraper.git`
 2. Navigate to the project directory:
-`cd latam-instagram-whatsapp-scraper`
+`cd Recursive Insta-Scraper`
 3. Create and activate a virtual environment:
 `python -m venv venv`
 `source venv/bin/activate` # On Windows: venv\Scripts\activate
@@ -47,7 +47,8 @@ Python-based scraper for discovering resellers, distributors, retailers, and rep
 In the root directory of the project, create a new file named .env (note the leading dot).
 6. Paste the following into your .env file
 
-```INSTAGRAM_USERNAME="your_instagram_username"
+```
+INSTAGRAM_USERNAME="your_instagram_username"
 INSTAGRAM_PASSWORD="your_instagram_password"
 OPENAI_API_KEY="your_openai_api_key_here"
 
@@ -106,7 +107,7 @@ A sample row in the export file contains:
 
 | Username       | Full Name       | Bio                         | WhatsApp Number | WhatsApp Group Link          | Type        | Region    | Follower Count | Profile URL                         | External Link          |
 |----------------|-----------------|-----------------------------|-----------------|-----------------------------|-------------|-----------|----------------|------------------------------------|------------------------|
-| gsm.latam      | GSM LATAM Store | Venta de celulares y accesorios | +52 1234567890  | https://chat.whatsapp.com/abc | Retailer    | Mexico    | 15000          | https://instagram.com/gsm.latam    | https://gsmstore.com   |
+| apple      | apple | Everyone has a story to tell. Tag #ShotoniPhone to take part | No number  | No link | Wholesaler    | Not specified    | 15000          | https://www.instagram.com/apple/    | https://l.instagram.com/?u=https%3A%2F%2Fapple.co%2FHomepage&e=AT1EMXw_73lUAetDcAXTM6-d_qL2h3KXZqGsyE9ZCswtRxMXbPy3JAxW2iAF_8W8l2rhCBTX54EvUyzcmT8igyCHvxHWnpk2ukXzuw)   |
 
 ---
 
@@ -121,10 +122,10 @@ A sample row in the export file contains:
 
 ## License
 
-This project is licensed under the MIT License.
+All copyright observed. This program should not be used my permission or for any business purpose without first consulting the programmer at the whatsapp number below.
 
 ---
 
 ## Contact
 
-For questions or collaboration, please reach out via the GitHub repo or this WhatsApp group linked at https://chat.whatsapp.com/LjycmpBDNL78ZB3cgAcged.
+For questions or collaboration, please reach out via the GitHub repo or contact me on WhatsApp via wa.me/2347032580065
