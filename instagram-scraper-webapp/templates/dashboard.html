@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Scraper Webapp</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 960px;
+        }
+        .form-section, .jobs-section {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        .messages {
+            margin-top: 20px;
+        }
+        .table img.status-icon {
+            width: 18px;
+            height: 18px;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .btn-download {
+            font-size: 0.85em;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">Scraper Dashboard</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {# --- FLASH MESSAGES DISPLAY AREA --- #}
+        {# This block iterates through any messages flashed by Flask (e.g., success, danger, info) #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="messages">
+              {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                  {{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {# --- END FLASH MESSAGES --- #}
+
+        <h2 class="mb-4">Welcome, {{ current_user.username }}!</h2>
+
+        <div class="form-section">
+            <h3 class="mb-3">Start New Scrape Job</h3>
+            <form method="POST" action="{{ url_for('dashboard') }}">
+                {{ form.csrf_token }} {# REQUIRED: This renders the hidden CSRF token input #}
+
+                <div class="mb-3">
+                    {{ form.seed_usernames.label(class_="form-label") }}
+                    {{ form.seed_usernames(class_="form-control", placeholder="e.g., user1, user2") }}
+                    {% if form.seed_usernames.errors %}
+                        <div class="text-danger">
+                            {% for error in form.seed_usernames.errors %}<small>{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.keywords.label(class_="form-label") }}
+                    {{ form.keywords(class_="form-control", placeholder="e.g., clothing, tech") }}
+                    {% if form.keywords.errors %}
+                        <div class="text-danger">
+                            {% for error in form.keywords.errors %}<small>{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.scrape_limit.label(class_="form-label") }}
+                    {{ form.scrape_limit(class_="form-control") }}
+                    {% if form.scrape_limit.errors %}
+                        <div class="text-danger">
+                            {% for error in form.scrape_limit.errors %}<small>{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.recursion_depth.label(class_="form-label") }}
+                    {{ form.recursion_depth(class_="form-control") }}
+                    {% if form.recursion_depth.errors %}
+                        <div class="text-danger">
+                            {% for error in form.recursion_depth.errors %}<small>{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.scrape_duration_hours.label(class_="form-label") }}
+                    {{ form.scrape_duration_hours(class_="form-control") }}
+                    {% if form.scrape_duration_hours.errors %}
+                        <div class="text-danger">
+                            {% for error in form.scrape_duration_hours.errors %}<small>{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    {{ form.export_format.label(class_="form-label") }}
+                    {{ form.export_format(class_="form-control", placeholder="e.g., csv, json") }}
+                    {% if form.export_format.errors %}
+                        <div class="text-danger">
+                            {% for error in form.export_format.errors %}<small>{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3 form-check">
+                    {{ form.visible_browser(class_="form-check-input") }}
+                    {{ form.visible_browser.label(class_="form-check-label") }}
+                    {% if form.visible_browser.errors %}
+                        <div class="text-danger">
+                            {% for error in form.visible_browser.errors %}<small>{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                {# IMPORTANT: This hidden input tells the Flask route which action to take #}
+                <input type="hidden" name="action" value="start_scrape">
+                
+                {{ form.submit(class_="btn btn-primary") }}
+            </form>
+        </div>
+
+        <div class="jobs-section">
+            <h3 class="mb-3">Your Scrape Jobs</h3>
+            {% if user_jobs %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Status</th>
+                            <th>Submitted</th>
+                            <th>Started</th>
+                            <th>Ended</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in user_jobs %}
+                        <tr>
+                            <td>{{ job.id }}</td>
+                            <td>
+                                {% if job.status == 'pending' %}
+                                    <span class="badge bg-secondary">{{ job.status.capitalize() }}</span>
+                                {% elif job.status == 'running' %}
+                                    <span class="badge bg-info">{{ job.status.capitalize() }}</span>
+                                {% elif job.status == 'completed' %}
+                                    <span class="badge bg-success">{{ job.status.capitalize() }}</span>
+                                {% elif job.status == 'failed' %}
+                                    <span class="badge bg-danger">{{ job.status.capitalize() }}</span>
+                                {% elif job.status == 'terminated' %}
+                                    <span class="badge bg-warning text-dark">{{ job.status.capitalize() }}</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark">{{ job.status.capitalize() }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ job.submitted_time.strftime('%Y-%m-%d %H:%M') if job.submitted_time else 'N/A' }}</td>
+                            <td>{{ job.start_time.strftime('%Y-%m-%d %H:%M') if job.start_time else 'N/A' }}</td>
+                            <td>{{ job.end_time.strftime('%Y-%m-%d %H:%M') if job.end_time else 'N/A' }}</td>
+                            <td>
+                                {% if job.status in ['completed', 'terminated'] and job.results_file_path %}
+                                    <a href="{{ url_for('download_results', job_id=job.id) }}" class="btn btn-sm btn-outline-success btn-download">Download</a>
+                                {% else %}
+                                    <button class="btn btn-sm btn-outline-secondary btn-download" disabled>No Results</button>
+                                {% endif %}
+                                {# Add more actions here if needed, e.g., view logs, terminate (requires more backend logic) #}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p>No scrape jobs found yet. Start a new one above!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

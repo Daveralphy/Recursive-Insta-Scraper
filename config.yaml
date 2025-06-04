@@ -26,32 +26,34 @@ keywords:
   - "mobile store"
   - "tech"
   - "mobile"
-  - "tienda movil" # <--- Added a common Spanish variation
-  - "celular" # <--- Added singular for completeness
-  - "telefonos" # <--- Added plural for completeness
-  - "electronica" # <--- More general tech term
-  - "ventas" # <--- If looking for sales accounts
-  - "distribuidora" # <--- Feminine form of distributor
-  - "accesorios moviles" # <--- More specific mobile accessories
-  - "venta de celulares" # <--- Common phrase
+  - "tienda movil"
+  - "celular"
+  - "telefonos"
+  - "electronica"
+  - "ventas"
+  - "distribuidora"
+  - "accesorios moviles"
+  - "venta de celulares"
+  - "accessories"
+  - "iphone"
 
 
 # REQUIRED: List of Instagram usernames to start scraping from.
 
 seed_usernames:
     - "longlivemari223"
-  # - "iphoneshop_co"
-  # - "smartshop_ec1"
-  # - "alo.caracas"
-  # - "4allfix"
-  # - "congressbrazilmobile"
-  # - "multicell_ec"
-  # - "jovi.brasil"
-  # - "joog.tech"
-  # - "atacarejo_dos_acessorios"
-  # - "emerson_vianna__"
-  # - "pal.matech"
-  # - "coelhocellcabofrio"
+    - "iphoneshop_co"
+    - "smartshop_ec1"
+    - "alo.caracas"
+    - "4allfix"
+    - "congressbrazilmobile"
+    - "multicell_ec"
+    - "jovi.brasil"
+    - "joog.tech"
+    - "atacarejo_dos_acessorios"
+    - "emerson_vianna__"
+    - "pal.matech"
+    - "coelhocellcabofrio"
 
 # REQUIRED: List of user agents for the browser.
 # The scraper will randomly pick one from this list for each session.
