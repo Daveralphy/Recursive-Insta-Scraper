@@ -78,9 +78,8 @@ class UserSettingsForm(FlaskForm):
     keywords = StringField('Keywords (comma-separated)')
     scrape_limit = IntegerField('Scrape Limit (e.g., 500 profiles)', default=500, validators=[DataRequired(), NumberRange(min=1)])
     recursion_depth = IntegerField('Recursion Depth (e.g., 1)', default=1, validators=[DataRequired(), NumberRange(min=0)])
-    visible_browser = BooleanField('Show Browser Window during Scrape (for testing)')
     export_format = StringField('Export Format (e.g., csv, json)', default='csv')
-    scrape_duration_hours = IntegerField('Scrape Duration (hours, 1-24)', default=3, validators=[DataRequired(), NumberRange(min=1, max=24)])
+    scrape_duration_hours = IntegerField('Scrape Duration (hours, 1-24)', default=1, validators=[DataRequired(), NumberRange(min=1, max=24)])
     submit = SubmitField('Start New Scrape')
 
 
@@ -195,7 +194,6 @@ def dashboard():
             user_settings.scrape_limit = form.scrape_limit.data
             user_settings.recursion_depth = form.recursion_depth.data
             user_settings.export_format = form.export_format.data
-            user_settings.visible_browser = form.visible_browser.data
             user_settings.scrape_duration_hours = form.scrape_duration_hours.data
 
             new_job = ScrapeJob(user_id=current_user.id, status='pending')
@@ -209,7 +207,6 @@ def dashboard():
                     'keywords': user_settings.keywords,
                     'scrape_limit': user_settings.scrape_limit,
                     'recursion_depth': user_settings.recursion_depth,
-                    'visible_browser': user_settings.visible_browser,
                     'export_format': user_settings.export_format,
                     'scrape_duration_hours': user_settings.scrape_duration_hours
                 }
@@ -247,7 +244,6 @@ def dashboard():
         form.keywords.data = user_settings.keywords
         form.scrape_limit.data = user_settings.scrape_limit
         form.recursion_depth.data = user_settings.recursion_depth
-        form.visible_browser.data = user_settings.visible_browser
         form.export_format.data = user_settings.export_format
         form.scrape_duration_hours.data = user_settings.scrape_duration_hours
     # If it was a POST and validation failed, form.data will already contain submitted values
